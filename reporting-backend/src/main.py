@@ -125,6 +125,7 @@ from src.routes.vital_forecasting import vital_forecasting_bp
 from src.routes.aloha_setup import aloha_setup_bp
 from src.routes.aloha_data_sources import aloha_data_sources_bp
 from src.routes.aloha_dashboard import aloha_dashboard_bp
+from src.routes.aloha_subsidiary_access import aloha_subsidiary_access_bp
 from src.routes.customer_churn_analysis import customer_churn_bp
 from src.models.support_ticket import SupportTicket, SupportTicketAttachment
 from src.routes.gl_mapping import gl_mapping_bp
@@ -446,6 +447,7 @@ app.register_blueprint(error_logs_bp)
 app.register_blueprint(aloha_setup_bp, url_prefix='/api/setup')
 app.register_blueprint(aloha_data_sources_bp)
 app.register_blueprint(aloha_dashboard_bp)
+app.register_blueprint(aloha_subsidiary_access_bp)
 
 # Register ETL management routes
 register_etl_routes(app)

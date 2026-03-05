@@ -8,7 +8,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
-import { UserPlus, Edit, Trash2, CheckCircle, XCircle, KeyRound } from 'lucide-react';
+import { UserPlus, Edit, Trash2, CheckCircle, XCircle, KeyRound, Building2, Globe } from 'lucide-react';
 import { apiUrl } from '../../lib/api';
 
 export function UserManagement({ user }) {
@@ -22,6 +22,28 @@ export function UserManagement({ user }) {
   const [resetPasswordUser, setResetPasswordUser] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [subsidiaryAccessUser, setSubsidiaryAccessUser] = useState(null);
+  const [showSubsidiaryDialog, setShowSubsidiaryDialog] = useState(false);
+  const [isAlohaOrg, setIsAlohaOrg] = useState(false);
+
+  // Detect if this is an Aloha Holdings org
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        // Check org name from user context or just check if aloha roles exist
+      } catch (e) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    // Detect Aloha org by checking if any loaded roles are Aloha roles
+    if (roles.length > 0) {
+      const hasAlohaRoles = roles.some(r => r.name && r.name.startsWith('Aloha'));
+      setIsAlohaOrg(hasAlohaRoles);
+    }
+  }, [roles]);
   
   useEffect(() => {
     loadUsers();
@@ -199,6 +221,7 @@ export function UserManagement({ user }) {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Roles</TableHead>
+                {isAlohaOrg && <TableHead>Portfolio Access</TableHead>}
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -223,6 +246,23 @@ export function UserManagement({ user }) {
                       )}
                     </div>
                   </TableCell>
+                  {isAlohaOrg && (
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-1 text-xs"
+                        onClick={() => {
+                          setSubsidiaryAccessUser(u);
+                          setShowSubsidiaryDialog(true);
+                          setError('');
+                        }}
+                      >
+                        <Building2 className="w-3 h-3" />
+                        Manage
+                      </Button>
+                    </TableCell>
+                  )}
                   <TableCell>
                     {u.is_active ? (
                       <Badge variant="success" className="flex items-center gap-1 w-fit">
@@ -311,6 +351,15 @@ export function UserManagement({ user }) {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {showSubsidiaryDialog && subsidiaryAccessUser && isAlohaOrg && (
+        <SubsidiaryAccessDialog
+          targetUser={subsidiaryAccessUser}
+          onClose={() => { setShowSubsidiaryDialog(false); setSubsidiaryAccessUser(null); }}
+          onSuccess={(msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); }}
+          onError={(msg) => setError(msg)}
+        />
       )}
 
       {showDialog && (
@@ -477,6 +526,218 @@ function UserDialog({ user, roles, onSave, onClose, loading, error }) {
             </Button>
           </div>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SubsidiaryAccessDialog({ targetUser, onClose, onSuccess, onError }) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [allAccess, setAllAccess] = useState(false);
+  const [selectedSubs, setSelectedSubs] = useState([]);
+  const [allSubsidiaries, setAllSubsidiaries] = useState([]);
+
+  useEffect(() => {
+    loadAccess();
+  }, [targetUser.id]);
+
+  async function loadAccess() {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/api/aloha/subsidiary-access/${targetUser.id}`), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAllSubsidiaries(data.all_subsidiaries || []);
+        setAllAccess(data.has_all_access || false);
+        if (data.has_all_access) {
+          setSelectedSubs(data.all_subsidiaries.map(s => s.id));
+        } else {
+          setSelectedSubs(data.assigned_subsidiaries || []);
+        }
+      } else {
+        onError('Failed to load subsidiary access');
+      }
+    } catch (err) {
+      onError('Error loading subsidiary access');
+    }
+    setLoading(false);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const body = allAccess
+        ? { all_access: true }
+        : { subsidiary_ids: selectedSubs };
+
+      const response = await fetch(apiUrl(`/api/aloha/subsidiary-access/${targetUser.id}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (response.ok) {
+        onSuccess(`Portfolio access updated for ${targetUser.first_name} ${targetUser.last_name}`);
+        onClose();
+      } else {
+        const data = await response.json();
+        onError(data.error || 'Failed to update subsidiary access');
+      }
+    } catch (err) {
+      onError('Error updating subsidiary access');
+    }
+    setSaving(false);
+  }
+
+  function toggleSubsidiary(subId) {
+    setSelectedSubs(prev =>
+      prev.includes(subId) ? prev.filter(id => id !== subId) : [...prev, subId]
+    );
+    // If manually toggling, turn off "all access"
+    setAllAccess(false);
+  }
+
+  function handleAllAccessToggle(checked) {
+    setAllAccess(checked);
+    if (checked) {
+      setSelectedSubs(allSubsidiaries.map(s => s.id));
+    } else {
+      setSelectedSubs([]);
+    }
+  }
+
+  const sapSubs = allSubsidiaries.filter(s => s.erp_type === 'SAP');
+  const nsSubs = allSubsidiaries.filter(s => s.erp_type === 'NetSuite');
+
+  function selectGroup(group) {
+    const ids = group.map(s => s.id);
+    const allSelected = ids.every(id => selectedSubs.includes(id));
+    if (allSelected) {
+      setSelectedSubs(prev => prev.filter(id => !ids.includes(id)));
+    } else {
+      setSelectedSubs(prev => [...new Set([...prev, ...ids])]);
+    }
+    setAllAccess(false);
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Building2 className="w-5 h-5" />
+            Portfolio Access
+          </DialogTitle>
+        </DialogHeader>
+
+        <p className="text-sm text-gray-600">
+          Manage which subsidiary companies <strong>{targetUser.first_name} {targetUser.last_name}</strong> ({targetUser.email}) can access.
+        </p>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <span className="text-gray-500">Loading...</span>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* All Access Toggle */}
+            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border">
+              <Checkbox
+                id="all-access"
+                checked={allAccess}
+                onCheckedChange={handleAllAccessToggle}
+              />
+              <div className="flex-1">
+                <label htmlFor="all-access" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-teal-600" />
+                  Full Portfolio Access
+                </label>
+                <p className="text-xs text-gray-500">Access to all current and future subsidiaries</p>
+              </div>
+            </div>
+
+            {/* SAP Companies */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-blue-700">SAP Companies ({sapSubs.length})</h4>
+                <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => selectGroup(sapSubs)} disabled={allAccess}>
+                  {sapSubs.every(s => selectedSubs.includes(s.id)) ? 'Deselect All SAP' : 'Select All SAP'}
+                </Button>
+              </div>
+              <div className="space-y-1 border rounded-lg p-3">
+                {sapSubs.map(sub => (
+                  <div key={sub.id} className="flex items-center space-x-3">
+                    <Checkbox
+                      id={`sub-${sub.id}`}
+                      checked={selectedSubs.includes(sub.id)}
+                      onCheckedChange={() => toggleSubsidiary(sub.id)}
+                      disabled={allAccess}
+                    />
+                    <label htmlFor={`sub-${sub.id}`} className="text-sm cursor-pointer flex-1">
+                      {sub.name}
+                    </label>
+                    <Badge variant="secondary" className="text-xs">SAP</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* NetSuite Companies */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-orange-700">NetSuite Companies ({nsSubs.length})</h4>
+                <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => selectGroup(nsSubs)} disabled={allAccess}>
+                  {nsSubs.every(s => selectedSubs.includes(s.id)) ? 'Deselect All NetSuite' : 'Select All NetSuite'}
+                </Button>
+              </div>
+              <div className="space-y-1 border rounded-lg p-3">
+                {nsSubs.map(sub => (
+                  <div key={sub.id} className="flex items-center space-x-3">
+                    <Checkbox
+                      id={`sub-${sub.id}`}
+                      checked={selectedSubs.includes(sub.id)}
+                      onCheckedChange={() => toggleSubsidiary(sub.id)}
+                      disabled={allAccess}
+                    />
+                    <label htmlFor={`sub-${sub.id}`} className="text-sm cursor-pointer flex-1">
+                      {sub.name}
+                    </label>
+                    <Badge variant="secondary" className="text-xs bg-orange-50 text-orange-700">NetSuite</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div className="text-xs text-gray-500 pt-1">
+              {allAccess
+                ? 'Full access to all 8 subsidiaries'
+                : `${selectedSubs.length} of ${allSubsidiaries.length} subsidiaries selected`
+              }
+              {!allAccess && selectedSubs.length === 0 && (
+                <span className="text-amber-600 ml-1">— User will not see any subsidiary data</span>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-2">
+              <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Access'}
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

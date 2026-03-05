@@ -17,10 +17,30 @@ const AlohaOrders = ({ user, organization }) => {
   const [orderData, setOrderData] = useState(null)
   const [subsidiaryFilter, setSubsidiaryFilter] = useState('all')
   const [days, setDays] = useState(30)
+  const [allowedSubs, setAllowedSubs] = useState(null)
+
+  useEffect(() => {
+    fetchMyAccess()
+  }, [])
 
   useEffect(() => {
     fetchOrders()
   }, [subsidiaryFilter, days])
+
+  const fetchMyAccess = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/aloha/subsidiary-access'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setAllowedSubs(data.subsidiary_details || [])
+      }
+    } catch (err) {
+      console.error('Access fetch error:', err)
+    }
+  }
 
   const fetchOrders = async () => {
     setLoading(true)
@@ -70,18 +90,20 @@ const AlohaOrders = ({ user, organization }) => {
             onChange={(e) => setSubsidiaryFilter(e.target.value)}
           >
             <option value="all">All Subsidiaries</option>
-            <optgroup label="SAP">
-              <option value="sap_sandia">Sandia</option>
-              <option value="sap_mercury">Mercury</option>
-              <option value="sap_ultimate_solutions">Ultimate Solutions</option>
-              <option value="sap_avalon">Avalon</option>
-              <option value="sap_orbot">Orbot</option>
-            </optgroup>
-            <optgroup label="NetSuite">
-              <option value="ns_hawaii_care">Hawaii Care and Cleaning</option>
-              <option value="ns_kauai_exclusive">Kauai Exclusive</option>
-              <option value="ns_heavenly_vacations">Heavenly Vacations</option>
-            </optgroup>
+            {allowedSubs && allowedSubs.filter(s => s.erp_type === 'SAP').length > 0 && (
+              <optgroup label="SAP">
+                {allowedSubs.filter(s => s.erp_type === 'SAP').map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </optgroup>
+            )}
+            {allowedSubs && allowedSubs.filter(s => s.erp_type === 'NetSuite').length > 0 && (
+              <optgroup label="NetSuite">
+                {allowedSubs.filter(s => s.erp_type === 'NetSuite').map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
           <select
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
