@@ -1,578 +1,369 @@
-import { useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect, useCallback } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { apiUrl } from '@/lib/api'
 import {
-  Brain,
-  Sparkles,
-  RefreshCw,
-  AlertCircle,
-  CheckCircle,
-  TrendingUp,
-  Lightbulb,
-  ShieldAlert,
-  MessageSquare,
-  Send,
-  ChevronDown,
-  ChevronUp,
+  Users, MessageSquare, TrendingUp, Activity,
+  RefreshCw, AlertCircle, Calendar, Layers
 } from 'lucide-react'
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis,
+  CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts'
+import { apiUrl } from '@/lib/api'
 
 // ---------------------------------------------------------------------------
-// Helper – authenticated POST to a VITAL Claude endpoint
+// Helpers
 // ---------------------------------------------------------------------------
-async function claudePost(path, body) {
-  const token = localStorage.getItem('token')
-  const res = await fetch(apiUrl(path), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || `Request failed (${res.status})`)
-  }
-  return res.json()
+
+const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString())
+
+const shortDate = (iso) => {
+  if (!iso) return ''
+  const [, m, d] = iso.split('-')
+  return `${parseInt(m)}/${parseInt(d)}`
 }
 
 // ---------------------------------------------------------------------------
-// InsightCard – renders a single structured insight block
+// Stat card
 // ---------------------------------------------------------------------------
-function InsightCard({ insights }) {
-  if (!insights) return null
 
-  // If Claude returned raw text instead of structured JSON
-  if (insights.raw) {
-    return (
-      <Card className="mt-4 border-purple-200 bg-purple-50">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-purple-800 flex items-center gap-2">
-            <Brain className="h-4 w-4" /> Claude Analysis
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{insights.raw}</p>
-        </CardContent>
-      </Card>
-    )
+const StatCard = ({ icon: Icon, label, value, sub, color = 'blue' }) => {
+  const colors = {
+    blue:   'bg-blue-50 text-blue-600',
+    green:  'bg-green-50 text-green-600',
+    purple: 'bg-purple-50 text-purple-600',
+    orange: 'bg-orange-50 text-orange-600',
   }
-
   return (
-    <div className="space-y-4 mt-4">
-      {/* Summary */}
-      {insights.summary && (
-        <Card className="border-purple-200 bg-purple-50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-purple-800 flex items-center gap-2">
-              <Brain className="h-4 w-4" /> Executive Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-700">{insights.summary}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Key Findings */}
-        {insights.key_findings?.length > 0 && (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-blue-800 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" /> Key Findings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1">
-                {insights.key_findings.map((f, i) => (
-                  <li key={i} className="text-sm text-gray-700 flex gap-2">
-                    <CheckCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Trends */}
-        {insights.trends?.length > 0 && (
-          <Card className="border-green-200 bg-green-50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-green-800 flex items-center gap-2">
-                <Sparkles className="h-4 w-4" /> Trends
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1">
-                {insights.trends.map((t, i) => (
-                  <li key={i} className="text-sm text-gray-700 flex gap-2">
-                    <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                    <span>{t}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Recommendations */}
-        {insights.recommendations?.length > 0 && (
-          <Card className="border-amber-200 bg-amber-50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-amber-800 flex items-center gap-2">
-                <Lightbulb className="h-4 w-4" /> Recommendations
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1">
-                {insights.recommendations.map((r, i) => (
-                  <li key={i} className="text-sm text-gray-700 flex gap-2">
-                    <Lightbulb className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                    <span>{r}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Risk Flags */}
-        {insights.risk_flags?.length > 0 && (
-          <Card className="border-red-200 bg-red-50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-red-800 flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4" /> Risk Flags
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1">
-                {insights.risk_flags.map((r, i) => (
-                  <li key={i} className="text-sm text-gray-700 flex gap-2">
-                    <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                    <span>{r}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Sentiment-specific fields */}
-      {insights.overall_sentiment && (
-        <Card className="border-purple-200 bg-purple-50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-purple-800 flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" /> Sentiment Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3">
-              <Badge
-                variant={
-                  insights.overall_sentiment === 'positive'
-                    ? 'default'
-                    : insights.overall_sentiment === 'negative'
-                    ? 'destructive'
-                    : 'secondary'
-                }
-                className="capitalize"
-              >
-                {insights.overall_sentiment}
-              </Badge>
-              {insights.sentiment_score !== undefined && (
-                <span className="text-sm text-gray-600">
-                  Score: {Number(insights.sentiment_score).toFixed(2)}
-                </span>
-              )}
-            </div>
-
-            {insights.top_themes?.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Top Themes</p>
-                <div className="flex flex-wrap gap-2">
-                  {insights.top_themes.map((t, i) => (
-                    <Badge key={i} variant="outline" className="text-xs">
-                      {t.theme} · {t.frequency}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {insights.recommended_actions?.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                  Recommended Actions
-                </p>
-                <ul className="space-y-1">
-                  {insights.recommended_actions.map((a, i) => (
-                    <li key={i} className="text-sm text-gray-700 flex gap-2">
-                      <CheckCircle className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
-                      <span>{a}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm text-gray-500 mb-1">{label}</p>
+            <p className="text-3xl font-bold text-gray-900">{value}</p>
+            {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+          </div>
+          <div className={`p-2 rounded-lg ${colors[color]}`}>
+            <Icon className="h-5 w-5" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
-const VitalClaudeAnalytics = ({ user }) => {
-  const isAdmin =
-    user?.role === 'admin' ||
-    user?.role === 'hr_admin' ||
-    user?.role === 'owner' ||
-    user?.role === 'super_admin'
 
-  // Tab state: 'cases' | 'sentiment' | 'ask'
-  const [activeTab, setActiveTab] = useState('cases')
+export default function VitalClaudeAnalytics({ user, organization }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [days, setDays] = useState(30)
+  const [refreshing, setRefreshing] = useState(false)
 
-  // Case analysis state
-  const [caseStats, setCaseStats] = useState('')
-  const [caseResult, setCaseResult] = useState(null)
-  const [caseLoading, setCaseLoading] = useState(false)
-  const [caseError, setCaseError] = useState(null)
-
-  // Sentiment analysis state
-  const [comments, setComments] = useState('')
-  const [sentimentResult, setSentimentResult] = useState(null)
-  const [sentimentLoading, setSentimentLoading] = useState(false)
-  const [sentimentError, setSentimentError] = useState(null)
-
-  // Free-form ask state (admin only)
-  const [askPrompt, setAskPrompt] = useState('')
-  const [askResult, setAskResult] = useState(null)
-  const [askLoading, setAskLoading] = useState(false)
-  const [askError, setAskError] = useState(null)
-
-  // Token usage accordion
-  const [showTokens, setShowTokens] = useState(false)
-
-  // ------------------------------------------------------------------
-  // Handlers
-  // ------------------------------------------------------------------
-
-  const handleAnalyzeCases = async () => {
-    setCaseError(null)
-    setCaseResult(null)
-    setCaseLoading(true)
+  const fetchDashboard = useCallback(async (forceRefresh = false) => {
+    setLoading(true)
+    setError(null)
     try {
-      let stats
-      try {
-        stats = JSON.parse(caseStats)
-      } catch {
-        throw new Error('Invalid JSON – please paste valid JSON statistics.')
-      }
-      const data = await claudePost('/api/vital/claude/analyze-cases', { stats })
-      setCaseResult(data)
-    } catch (err) {
-      setCaseError(err.message)
-    } finally {
-      setCaseLoading(false)
-    }
-  }
-
-  const handleAnalyzeSentiment = async () => {
-    setSentimentError(null)
-    setSentimentResult(null)
-    setSentimentLoading(true)
-    try {
-      const lines = comments
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean)
-      if (lines.length === 0) throw new Error('Please enter at least one comment.')
-      const data = await claudePost('/api/vital/claude/analyze-sentiment', {
-        comments: lines,
+      const token = localStorage.getItem('token')
+      const base = typeof apiUrl === 'function' ? apiUrl('/api/vital/claude-analytics/dashboard') : `${apiUrl}/api/vital/claude-analytics/dashboard`
+      const url = `${base}?days=${days}${forceRefresh ? '&refresh=true' : ''}`
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      setSentimentResult(data)
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}))
+        throw new Error(body.error || `HTTP ${resp.status}`)
+      }
+      const json = await resp.json()
+      setData(json)
     } catch (err) {
-      setSentimentError(err.message)
+      setError(err.message)
     } finally {
-      setSentimentLoading(false)
+      setLoading(false)
+      setRefreshing(false)
     }
+  }, [days])
+
+  useEffect(() => { fetchDashboard() }, [fetchDashboard])
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    fetchDashboard(true)
   }
 
-  const handleAsk = async () => {
-    setAskError(null)
-    setAskResult(null)
-    setAskLoading(true)
-    try {
-      if (!askPrompt.trim()) throw new Error('Please enter a prompt.')
-      const data = await claudePost('/api/vital/claude/ask', { prompt: askPrompt })
-      setAskResult(data)
-    } catch (err) {
-      setAskError(err.message)
-    } finally {
-      setAskLoading(false)
-    }
+  // -------------------------------------------------------------------------
+  // Loading state
+  // -------------------------------------------------------------------------
+
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-64">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin text-purple-500 mx-auto mb-3" />
+          <p className="text-gray-500">Loading Claude analytics…</p>
+        </div>
+      </div>
+    )
   }
 
-  // ------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Error state
+  // -------------------------------------------------------------------------
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium text-red-800">Could not load Claude analytics</p>
+              <p className="text-sm text-red-600 mt-1">{error}</p>
+              {error.includes('CLAUDE_ANALYTICS_API_KEY') && (
+                <p className="text-sm text-red-600 mt-2">
+                  Add <code className="bg-red-100 px-1 rounded">CLAUDE_ANALYTICS_API_KEY</code> to
+                  Railway environment variables. Generate the key at{' '}
+                  <a href="https://claude.ai/analytics/api-keys" target="_blank" rel="noreferrer"
+                    className="underline">claude.ai/analytics/api-keys</a>.
+                </p>
+              )}
+              <Button size="sm" variant="outline" className="mt-3" onClick={() => fetchDashboard()}>
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // -------------------------------------------------------------------------
+  // Data
+  // -------------------------------------------------------------------------
+
+  const latest = data?.latest_summary || {}
+  const summaries = data?.summaries || []
+  const topProjects = data?.top_projects || []
+  const topUsers = data?.top_users || []
+  const skills = data?.skills || []
+  const latestDate = data?.latest_date
+
+  const chartData = summaries.map((s) => ({
+    date: shortDate(s.starting_date),
+    DAU: s.daily_active_user_count || 0,
+    WAU: s.weekly_active_user_count || 0,
+    MAU: s.monthly_active_user_count || 0,
+  }))
+
+  const adoptionRate = latest.assigned_seat_count
+    ? Math.round(((latest.daily_active_user_count || 0) / latest.assigned_seat_count) * 100)
+    : null
+
+  // -------------------------------------------------------------------------
   // Render
-  // ------------------------------------------------------------------
-
-  const tabs = [
-    { id: 'cases', label: 'Case Analytics', icon: TrendingUp },
-    { id: 'sentiment', label: 'Sentiment Analysis', icon: MessageSquare },
-    ...(isAdmin ? [{ id: 'ask', label: 'Ask Claude', icon: Brain }] : []),
-  ]
+  // -------------------------------------------------------------------------
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Brain className="h-6 w-6 text-purple-600" />
-            Claude AI Analytics
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Powered by Anthropic Claude · VITAL Worklife
+          <h1 className="text-2xl font-bold text-gray-900">Claude Analytics</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Usage &amp; adoption · VITAL Worklife
+            {latestDate && (
+              <span className="ml-2 text-gray-400">· Latest data: {latestDate}</span>
+            )}
           </p>
         </div>
-        <Badge variant="outline" className="text-purple-700 border-purple-300 bg-purple-50">
-          <Sparkles className="h-3 w-3 mr-1" />
-          Claude 3.5 Sonnet
-        </Badge>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1 border rounded-lg p-1 bg-white">
+            {[7, 14, 30].map((d) => (
+              <button
+                key={d}
+                onClick={() => setDays(d)}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  days === d ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          {data?.cached && <Badge variant="secondary" className="text-xs">Cached</Badge>}
+        </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200 pb-0">
-        {tabs.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === id
-                ? 'border-purple-600 text-purple-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </button>
-        ))}
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          icon={Activity}
+          label="Daily Active Users"
+          value={fmt(latest.daily_active_user_count)}
+          sub={adoptionRate != null ? `${adoptionRate}% of seats` : undefined}
+          color="purple"
+        />
+        <StatCard
+          icon={Users}
+          label="Weekly Active Users"
+          value={fmt(latest.weekly_active_user_count)}
+          sub="7-day rolling"
+          color="blue"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Monthly Active Users"
+          value={fmt(latest.monthly_active_user_count)}
+          sub="30-day rolling"
+          color="green"
+        />
+        <StatCard
+          icon={Calendar}
+          label="Assigned Seats"
+          value={fmt(latest.assigned_seat_count)}
+          sub={
+            latest.pending_invite_count
+              ? `${latest.pending_invite_count} pending invite${latest.pending_invite_count !== 1 ? 's' : ''}`
+              : 'No pending invites'
+          }
+          color="orange"
+        />
       </div>
 
-      {/* ── Case Analytics Tab ── */}
-      {activeTab === 'cases' && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Analyse Case Statistics</CardTitle>
-              <CardDescription>
-                Paste aggregated, de-identified case metrics as JSON. Claude will identify trends,
-                key findings, and recommendations.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                placeholder={`{\n  "total_cases": 1240,\n  "avg_resolution_days": 4.2,\n  "case_types": {"counselling": 620, "financial": 310, "legal": 180, "other": 130},\n  "nps_avg": 8.1,\n  "satisfaction_avg": 4.3\n}`}
-                value={caseStats}
-                onChange={(e) => setCaseStats(e.target.value)}
-                rows={8}
-                className="font-mono text-sm"
-              />
-              <Button
-                onClick={handleAnalyzeCases}
-                disabled={caseLoading || !caseStats.trim()}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                {caseLoading ? (
-                  <>
-                    <LoadingSpinner className="h-4 w-4 mr-2" /> Analysing…
-                  </>
-                ) : (
-                  <>
-                    <Brain className="h-4 w-4 mr-2" /> Analyse with Claude
-                  </>
-                )}
-              </Button>
-
-              {caseError && (
-                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  {caseError}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {caseResult && (
-            <div>
-              <InsightCard insights={caseResult.insights} />
-              <TokenUsage result={caseResult} show={showTokens} onToggle={() => setShowTokens(!showTokens)} />
-            </div>
-          )}
-        </div>
+      {/* Active users trend chart */}
+      {chartData.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold">
+              Active Users — Last {days} Days
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="DAU" stroke="#7c3aed" strokeWidth={2} dot={false} name="Daily" />
+                <Line type="monotone" dataKey="WAU" stroke="#2563eb" strokeWidth={2} dot={false} name="Weekly" />
+                <Line type="monotone" dataKey="MAU" stroke="#16a34a" strokeWidth={2} dot={false} name="Monthly" />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       )}
 
-      {/* ── Sentiment Analysis Tab ── */}
-      {activeTab === 'sentiment' && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Satisfaction Comment Analysis</CardTitle>
-              <CardDescription>
-                Paste de-identified satisfaction comments (one per line, max 200). Claude will
-                identify themes, sentiment, and recommended actions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                placeholder={
-                  'The counsellor was very understanding and helped me through a difficult time.\n' +
-                  'Waited too long for a callback – very frustrating.\n' +
-                  'Excellent service, would recommend to colleagues.'
-                }
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                rows={10}
-              />
-              <Button
-                onClick={handleAnalyzeSentiment}
-                disabled={sentimentLoading || !comments.trim()}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
+      {/* Projects + Top users */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Layers className="h-4 w-4 text-purple-500" />
+              Top Chat Projects
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topProjects.length === 0 ? (
+              <p className="text-sm text-gray-400">No project data available.</p>
+            ) : (
+              <div className="space-y-2">
+                {topProjects.slice(0, 8).map((p, i) => (
+                  <div key={p.project_id || i} className="flex items-center justify-between text-sm">
+                    <span className="truncate text-gray-700 max-w-[60%]" title={p.project_name}>
+                      {p.project_name || 'Unnamed project'}
+                    </span>
+                    <div className="flex gap-3 text-gray-500 text-xs">
+                      <span>{fmt(p.distinct_user_count)} users</span>
+                      <span>{fmt(p.message_count)} msgs</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-blue-500" />
+              Most Active Users
+              <span className="text-xs font-normal text-gray-400">(admin only)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topUsers.length === 0 ? (
+              <p className="text-sm text-gray-400">No user data available.</p>
+            ) : (
+              <div className="space-y-2">
+                {topUsers.slice(0, 8).map((u, i) => {
+                  const msgs = u.chat_metrics?.message_count || 0
+                  const convos = u.chat_metrics?.distinct_conversation_count || 0
+                  return (
+                    <div key={u.user?.id || i} className="flex items-center justify-between text-sm">
+                      <span className="truncate text-gray-700 max-w-[55%]" title={u.user?.email_address}>
+                        {u.user?.email_address || 'Unknown'}
+                      </span>
+                      <div className="flex gap-3 text-gray-500 text-xs">
+                        <span>{fmt(msgs)} msgs</span>
+                        <span>{fmt(convos)} chats</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Skill usage chart */}
+      {skills.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold">Skill Usage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart
+                data={skills.slice(0, 10).map((s) => ({
+                  name: s.skill_name || 'Unknown',
+                  users: s.distinct_user_count || 0,
+                }))}
+                margin={{ top: 5, right: 20, left: 0, bottom: 40 }}
               >
-                {sentimentLoading ? (
-                  <>
-                    <LoadingSpinner className="h-4 w-4 mr-2" /> Analysing…
-                  </>
-                ) : (
-                  <>
-                    <MessageSquare className="h-4 w-4 mr-2" /> Analyse Sentiment
-                  </>
-                )}
-              </Button>
-
-              {sentimentError && (
-                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  {sentimentError}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {sentimentResult && (
-            <div>
-              <InsightCard insights={sentimentResult.insights} />
-              <TokenUsage
-                result={sentimentResult}
-                show={showTokens}
-                onToggle={() => setShowTokens(!showTokens)}
-                extra={`${sentimentResult.comments_analyzed} comments analysed`}
-              />
-            </div>
-          )}
-        </div>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="users" fill="#7c3aed" name="Unique users" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       )}
 
-      {/* ── Ask Claude Tab (admin only) ── */}
-      {activeTab === 'ask' && isAdmin && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Free-Form Analytics Prompt</CardTitle>
-              <CardDescription>
-                Ask Claude any analytics question. You can optionally paste supporting data below
-                your question.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                placeholder="What are the key drivers of low NPS scores this quarter, and what actions should we prioritise?"
-                value={askPrompt}
-                onChange={(e) => setAskPrompt(e.target.value)}
-                rows={5}
-              />
-              <Button
-                onClick={handleAsk}
-                disabled={askLoading || !askPrompt.trim()}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                {askLoading ? (
-                  <>
-                    <LoadingSpinner className="h-4 w-4 mr-2" /> Thinking…
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" /> Ask Claude
-                  </>
-                )}
-              </Button>
-
-              {askError && (
-                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  {askError}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {askResult && (
-            <Card className="border-purple-200 bg-purple-50">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold text-purple-800 flex items-center gap-2">
-                  <Brain className="h-4 w-4" /> Claude's Response
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">{askResult.response}</p>
-                <TokenUsage
-                  result={askResult}
-                  show={showTokens}
-                  onToggle={() => setShowTokens(!showTokens)}
-                />
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      {/* Non-fatal API errors */}
+      {data?.errors?.length > 0 && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="p-4">
+            <p className="text-sm font-medium text-yellow-800 mb-1">Some data could not be loaded:</p>
+            <ul className="text-xs text-yellow-700 list-disc list-inside space-y-0.5">
+              {data.errors.map((e, i) => <li key={i}>{e}</li>)}
+            </ul>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
 }
-
-// ---------------------------------------------------------------------------
-// Small helper: token usage accordion
-// ---------------------------------------------------------------------------
-function TokenUsage({ result, show, onToggle, extra }) {
-  if (!result?.tokens_used && !result?.model) return null
-  return (
-    <div className="mt-2">
-      <button
-        onClick={onToggle}
-        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-      >
-        {show ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        Usage details
-      </button>
-      {show && (
-        <div className="mt-1 text-xs text-gray-500 space-x-4">
-          {result.model && <span>Model: {result.model}</span>}
-          {result.tokens_used !== undefined && <span>Tokens: {result.tokens_used}</span>}
-          {result.cached && <Badge variant="outline" className="text-xs">Cached</Badge>}
-          {extra && <span>{extra}</span>}
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default VitalClaudeAnalytics
