@@ -213,6 +213,23 @@ def update_organization(org_id):
             if isinstance(fy_month, int) and 1 <= fy_month <= 12:
                 org.fiscal_year_start_month = fy_month
         
+        # Allow updating the settings JSON blob (used for excluded_bill_to_customers,
+        # excluded_branches, and other per-org config)
+        if 'settings' in data:
+            import json as _json
+            if isinstance(data['settings'], dict):
+                # Merge with existing settings rather than overwrite
+                existing_settings = {}
+                if org.settings:
+                    try:
+                        existing_settings = _json.loads(org.settings) if isinstance(org.settings, str) else org.settings
+                    except Exception:
+                        existing_settings = {}
+                existing_settings.update(data['settings'])
+                org.settings = _json.dumps(existing_settings)
+            elif isinstance(data['settings'], str):
+                org.settings = data['settings']
+        
         db.session.commit()
         
         logger.info(f"Updated organization: {org.name} (ID: {org.id})")
