@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-03-04T00:25:53.635625",
+  "last_updated": "2026-03-05T00:00:00",
   "fixes": [
     {
       "ticket_id": "MANUAL-001",
@@ -368,29 +368,29 @@
       "organization": "all",
       "issue_summary": "Cash Burn report showing wrong billable rate (base rate instead of effective rate after discount), wrong unbillable labor value, and wrong hours at risk (missing no-quote WOs)",
       "root_cause": "Three issues: (1) Billable rate displayed was the base LaborRate.Rate, ignoring WO.LaborDiscount. (2) Unbillable labor value used base rate for dollar calculations. (3) Hours at Risk only counted WOs over quoted hours, missing WOs with NO quote at all (15 of 21 WOs).",
-      "solution": "(1) Added effective_rate calculation: LaborRate.Rate * (1 - LaborDiscount/100). Backend now returns effective_rate, labor_rate, and labor_discount per WO. (2) Unbillable labor value now uses effective_rate for calculations. (3) Hours at Risk now includes NO_QUOTE WOs — total = over-budget hours + no-quote hours. (4) Added Billable Rate column to table with tooltip showing base rate, discount %, and effective rate.",
+      "solution": "(1) Added effective_rate calculation: LaborRate.Rate * (1 - LaborDiscount/100). Backend now returns effective_rate, labor_rate, and labor_discount per WO. (2) Unbillable labor value now uses effective_rate for calculations. (3) Hours at Risk now includes NO_QUOTE WOs \u2014 total = over-budget hours + no-quote hours. (4) Added Billable Rate column to table with tooltip showing base rate, discount %, and effective rate.",
       "files_modified": [
         "reporting-backend/src/routes/service_shop_work_orders.py",
         "reporting-frontend/src/components/departments/ServiceReport.jsx"
       ],
-      "multi_tenant_impact": "Affects all orgs — effective rate calculation is universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 effective rate calculation is universal",
       "testing_passed": true,
       "date_fixed": "2026-03-04",
-      "lessons_learned": "CRITICAL: WOs can have a LaborDiscount field (0-100%). The effective billable rate = LaborRate.Rate × (1 - WO.LaborDiscount/100). ALWAYS use effective rate for dollar calculations, not the base rate. Also, Hours at Risk must include WOs with NO quote — these represent untracked budget exposure."
+      "lessons_learned": "CRITICAL: WOs can have a LaborDiscount field (0-100%). The effective billable rate = LaborRate.Rate \u00d7 (1 - WO.LaborDiscount/100). ALWAYS use effective rate for dollar calculations, not the base rate. Also, Hours at Risk must include WOs with NO quote \u2014 these represent untracked budget exposure."
     },
     {
       "ticket_id": "TKT-2026-0024",
       "type": "question",
       "component": "Cash Burn / Quoted Hours Source",
       "organization": "IPS (ind004)",
-      "issue_summary": "Confirm where Quoted Hours come from and send to John — potential process change needed",
+      "issue_summary": "Confirm where Quoted Hours come from and send to John \u2014 potential process change needed",
       "root_cause": "Information request with process implications.",
-      "solution": "Documented: Quoted Hours = WOQuote.Amount (Type='L') / Effective Labor Rate. Effective Rate = LaborRate.Rate × (1 - WO.LaborDiscount/100). Found 15 of 21 open WOs have no quote entered — process change needed for IPS team to enter labor quotes on all WOs.",
+      "solution": "Documented: Quoted Hours = WOQuote.Amount (Type='L') / Effective Labor Rate. Effective Rate = LaborRate.Rate \u00d7 (1 - WO.LaborDiscount/100). Found 15 of 21 open WOs have no quote entered \u2014 process change needed for IPS team to enter labor quotes on all WOs.",
       "files_modified": [],
-      "multi_tenant_impact": "N/A — information and process recommendation",
+      "multi_tenant_impact": "N/A \u2014 information and process recommendation",
       "testing_passed": true,
       "date_fixed": "2026-03-04",
-      "lessons_learned": "Quoted Hours derivation: WOQuote.Amount(Type='L') / effective_rate. The WOQuote table stores labor quotes as DOLLAR amounts, not hours. The conversion to hours depends on the WO's assigned labor rate and discount. Many WOs may have no quote entered — this is a process gap that limits Cash Burn tracking effectiveness."
+      "lessons_learned": "Quoted Hours derivation: WOQuote.Amount(Type='L') / effective_rate. The WOQuote table stores labor quotes as DOLLAR amounts, not hours. The conversion to hours depends on the WO's assigned labor rate and discount. Many WOs may have no quote entered \u2014 this is a process gap that limits Cash Burn tracking effectiveness."
     },
     {
       "ticket_id": "TKT-2026-0025",
@@ -403,7 +403,7 @@
       "files_modified": [
         "reporting-backend/src/routes/department_reports.py"
       ],
-      "multi_tenant_impact": "Affects all orgs — deduplication is a safety net for all tenants",
+      "multi_tenant_impact": "Affects all orgs \u2014 deduplication is a safety net for all tenants",
       "testing_passed": true,
       "date_fixed": "2026-03-04",
       "lessons_learned": "Defense in depth: Even with SQL-level deduplication (ROW_NUMBER), add Python-level deduplication as a safety net for any endpoint that displays work order lists. Log warnings when duplicates are detected to aid debugging. The Equipment table 1:N relationship with UnitNo is a recurring source of row multiplication."
@@ -420,7 +420,7 @@
         "reporting-backend/src/routes/department_reports.py",
         "reporting-frontend/src/components/WorkOrderTypes.jsx"
       ],
-      "multi_tenant_impact": "Affects all orgs — WO status filtering is universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 WO status filtering is universal",
       "testing_passed": true,
       "date_fixed": "2026-03-04",
       "lessons_learned": "CRITICAL WO STATUS FILTERS: When showing 'current' or 'active' work orders, ALWAYS apply both: (1) ClosedDate IS NULL = open, (2) DeletionTime IS NULL = not deleted. Without these filters, counts will be massively inflated with historical/closed/deleted records. Consider returning both open and total counts so users have context."
@@ -431,12 +431,12 @@
       "component": "Cost per Hour / CostPerHour.jsx",
       "organization": "all",
       "issue_summary": "Document which database field the Cost per Hour is pulling from",
-      "root_cause": "Enhancement request — methodology section existed but didn't list specific database fields.",
+      "root_cause": "Enhancement request \u2014 methodology section existed but didn't list specific database fields.",
       "solution": "Expanded the Methodology section on the Cost per Hour tab with exact field names: Total Cost = SUM(InvoiceReg.PartsTaxable + PartsNonTax + LaborTaxable + LaborNonTax + MiscTaxable + MiscNonTax). Operating Hours = MAX-MIN of InvoiceReg.HourMeter. Target = Equipment.TargetCostPerHour. PM flag = Equipment.GuaranteedMaintenance. Series = Equipment.ModelGroup.",
       "files_modified": [
         "reporting-frontend/src/components/CostPerHour.jsx"
       ],
-      "multi_tenant_impact": "Affects all orgs — methodology documentation is universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 methodology documentation is universal",
       "testing_passed": true,
       "date_fixed": "2026-03-04",
       "lessons_learned": "Cost per Hour field sources: Costs from InvoiceReg (6 cost columns: PartsTaxable, PartsNonTax, LaborTaxable, LaborNonTax, MiscTaxable, MiscNonTax). Hours from InvoiceReg.HourMeter (MAX-MIN). Target from Equipment.TargetCostPerHour. PM flag from Equipment.GuaranteedMaintenance. Series from Equipment.ModelGroup (fallback: Model parsing)."
@@ -450,7 +450,7 @@
       "root_cause": "Bennett, IPS, and other orgs all have different SaleCode values for the same department types. Hardcoded SaleCodes have caused bugs in: Invoiced Sales (MANUAL-004), Customer Profitability (TKT-2026-0022), Maintenance Contract Profitability (TKT-2026-0021), Service Invoice Billing (TKT-2026-0006).",
       "solution": "ALWAYS use dynamic Dept table lookup: query Dept table for department titles matching keywords (e.g., 'service', 'maintenance', 'new equip'), then use the returned SaleCodes in the main query. Never hardcode SaleCode values.",
       "files_modified": [],
-      "multi_tenant_impact": "CRITICAL — this is the #1 recurring multi-tenant bug pattern",
+      "multi_tenant_impact": "CRITICAL \u2014 this is the #1 recurring multi-tenant bug pattern",
       "testing_passed": true,
       "date_fixed": "2026-03-04",
       "lessons_learned": "GOLDEN RULE: NEVER hardcode SaleCodes or Dept numbers. The Dept table's Title field is the only reliable cross-tenant identifier. Query pattern: SELECT SaleCode FROM {schema}.Dept WHERE LOWER(Title) LIKE '%keyword%'. This has been the root cause of at least 4 separate bugs."
@@ -464,7 +464,7 @@
       "root_cause": "When writing SQL JOINs, the main WO table gets {schema}. prefix but sub-tables in subqueries (WOLabor, WOParts, WOMisc, WOQuote) are sometimes missed.",
       "solution": "Always verify ALL table references in a query have {schema}. prefix. Sub-tables to watch: WOLabor, WOParts, WOMisc, WOQuote, LaborRate, Equipment, Customer, InvoiceReg.",
       "files_modified": [],
-      "multi_tenant_impact": "CRITICAL — missing schema prefix causes queries to fail or return wrong data",
+      "multi_tenant_impact": "CRITICAL \u2014 missing schema prefix causes queries to fail or return wrong data",
       "testing_passed": true,
       "date_fixed": "2026-03-04",
       "lessons_learned": "CHECKLIST for new SQL queries: After writing any query, scan EVERY table reference and verify it has {schema}. prefix. Common misses: sub-tables inside LEFT JOIN subqueries (SELECT ... FROM WOLabor should be SELECT ... FROM {schema}.WOLabor)."
@@ -475,30 +475,30 @@
       "component": "Support Ticket API",
       "organization": "all",
       "issue_summary": "Ticket resolve endpoint field names",
-      "root_cause": "Documentation gap — the resolve endpoint requires specific field names.",
+      "root_cause": "Documentation gap \u2014 the resolve endpoint requires specific field names.",
       "solution": "POST /api/support-tickets/{id}/resolve requires: fix_summary (string) and resolution_notes (string). NOT 'resolution'. Returns 400 if neither field is provided.",
       "files_modified": [],
-      "multi_tenant_impact": "N/A — API documentation",
+      "multi_tenant_impact": "N/A \u2014 API documentation",
       "testing_passed": true,
       "date_fixed": "2026-03-04",
-      "lessons_learned": "Ticket resolve endpoint: POST /api/support-tickets/{id}/resolve with JSON body containing fix_summary and resolution_notes. The field name 'resolution' does NOT work — must use fix_summary or resolution_notes."
+      "lessons_learned": "Ticket resolve endpoint: POST /api/support-tickets/{id}/resolve with JSON body containing fix_summary and resolution_notes. The field name 'resolution' does NOT work \u2014 must use fix_summary or resolution_notes."
     },
     {
       "ticket_id": "TKT-2026-0028",
       "type": "bug",
       "component": "Currie Service Page / currie_report.py + CurrieService.jsx",
       "organization": "IPS (ind004)",
-      "issue_summary": "Active Technicians KPI showing 10 instead of 20 for IPS — undercounting because WO.Technician only records the assigned tech on the WO header, not all techs who clocked labor",
-      "root_cause": "get_technician_count() was querying COUNT(DISTINCT WO.Technician) — this only counts the tech assigned to the WO header. Multi-tech jobs where multiple people logged labor via WOLabor only show one name in WO.Technician. Also filtered on OpenDate only, missing WOs opened in prior periods.",
+      "issue_summary": "Active Technicians KPI showing 10 instead of 20 for IPS \u2014 undercounting because WO.Technician only records the assigned tech on the WO header, not all techs who clocked labor",
+      "root_cause": "get_technician_count() was querying COUNT(DISTINCT WO.Technician) \u2014 this only counts the tech assigned to the WO header. Multi-tech jobs where multiple people logged labor via WOLabor only show one name in WO.Technician. Also filtered on OpenDate only, missing WOs opened in prior periods.",
       "solution": "Changed query to COUNT(DISTINCT WOLabor.MechanicName) with INNER JOIN to WO. Added STRING_AGG to also return the list of tech names. Added DeletionTime IS NULL filter. Frontend now shows a 'View list' expandable section under the count so John can verify all 20 techs are being counted.",
       "files_modified": [
         "reporting-backend/src/routes/currie_report.py",
         "reporting-frontend/src/components/CurrieService.jsx"
       ],
-      "multi_tenant_impact": "Affects all orgs — WO.Technician vs WOLabor.MechanicName distinction is universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 WO.Technician vs WOLabor.MechanicName distinction is universal",
       "testing_passed": false,
       "date_fixed": "2026-03-05",
-      "lessons_learned": "CRITICAL: WO.Technician is the ASSIGNED tech on the work order header — it is NOT a count of everyone who worked on the job. For accurate technician headcount, ALWAYS use COUNT(DISTINCT WOLabor.MechanicName). The WOLabor table records every tech who clocked time on a WO, regardless of who is listed as the primary technician on the WO header."
+      "lessons_learned": "CRITICAL: WO.Technician is the ASSIGNED tech on the work order header \u2014 it is NOT a count of everyone who worked on the job. For accurate technician headcount, ALWAYS use COUNT(DISTINCT WOLabor.MechanicName). The WOLabor table records every tech who clocked time on a WO, regardless of who is listed as the primary technician on the WO header."
     },
     {
       "ticket_id": "TKT-2026-0029",
@@ -521,39 +521,87 @@
       "type": "feature",
       "component": "Customer Profitability / department_reports.py + CustomerProfitability.jsx",
       "organization": "IPS (ind004)",
-      "issue_summary": "John needs to investigate why QUA001 (Quaker City Castings) shows $21,056 in costs vs $11,085 revenue — needs WO-level parts cost breakdown",
-      "root_cause": "Feature request — no drill-down existed on Customer Profitability to see individual WOs and parts lines.",
+      "issue_summary": "John needs to investigate why QUA001 (Quaker City Castings) shows $21,056 in costs vs $11,085 revenue \u2014 needs WO-level parts cost breakdown",
+      "root_cause": "Feature request \u2014 no drill-down existed on Customer Profitability to see individual WOs and parts lines.",
       "solution": "Added new backend endpoint GET /api/reports/departments/customer-profitability/wo-detail?customer_number=QUA001&department=service. Returns all WOs for the customer with labor/parts/misc cost breakdown, plus individual WOParts line items (PartNo, Description, Qty, Cost, Sell, extended amounts). Frontend adds a 'WOs' button on each customer row that opens a modal with: (1) summary tiles (WO count, labor cost, parts cost, total cost), (2) expandable WO rows showing each WO's costs, (3) expandable parts lines within each WO showing individual part numbers and costs.",
       "files_modified": [
         "reporting-backend/src/routes/department_reports.py",
         "reporting-frontend/src/components/CustomerProfitability.jsx"
       ],
-      "multi_tenant_impact": "Affects all orgs — drill-down is available universally",
+      "multi_tenant_impact": "Affects all orgs \u2014 drill-down is available universally",
       "testing_passed": false,
       "date_fixed": "2026-03-05",
-      "lessons_learned": "WOParts.Cost is the STANDARD COST at the time the part was added to the WO — it may differ from the actual purchase cost if standard costs are stale in Softbase. When investigating high parts costs, always compare WOParts.Cost vs WOParts.Sell to see if the markup is appropriate, and check if standard costs have been updated recently. Also note: WOParts.Qty * WOParts.Cost = extended cost (not just WOParts.Cost alone)."
+      "lessons_learned": "WOParts.Cost is the STANDARD COST at the time the part was added to the WO \u2014 it may differ from the actual purchase cost if standard costs are stale in Softbase. When investigating high parts costs, always compare WOParts.Cost vs WOParts.Sell to see if the markup is appropriate, and check if standard costs have been updated recently. Also note: WOParts.Qty * WOParts.Cost = extended cost (not just WOParts.Cost alone)."
     },
     {
       "ticket_id": "PATTERN-003",
       "type": "pattern",
       "component": "Technician Counting",
       "organization": "all",
-      "issue_summary": "Recurring pattern: WO.Technician undercounts active technicians — use WOLabor.MechanicName instead",
+      "issue_summary": "Recurring pattern: WO.Technician undercounts active technicians \u2014 use WOLabor.MechanicName instead",
       "root_cause": "WO.Technician is a single field on the WO header. It only records the primary assigned technician. Multi-tech jobs, helper techs, and techs who clocked time but weren't the primary assignee are invisible in WO.Technician.",
       "solution": "ALWAYS use COUNT(DISTINCT WOLabor.MechanicName) for technician headcount. Join WOLabor to WO for date filtering. Add DeletionTime IS NULL to WO filter.",
       "files_modified": [],
-      "multi_tenant_impact": "CRITICAL — affects any report that counts active technicians",
+      "multi_tenant_impact": "CRITICAL \u2014 affects any report that counts active technicians",
       "testing_passed": true,
       "date_fixed": "2026-03-05",
       "lessons_learned": "GOLDEN RULE for technician counts: Use WOLabor.MechanicName, NOT WO.Technician. WO.Technician = primary assigned tech (1 per WO). WOLabor.MechanicName = every tech who clocked time (N per WO). For per-tech metrics (revenue/tech, hours/tech), always use the WOLabor-based count as the denominator."
+    },
+    {
+      "ticket_id": "TKT-2026-0033",
+      "type": "bug_fix",
+      "component": "Customer Profitability - Service Dept Filter",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Service department filter was too broad - %maintenance% keyword matched AMI/Alside (Dept 75) and fallback range 40-75 included Rental, Lease, Demo, AMI",
+      "root_cause": "The Dept table title lookup used LIKE '%maintenance%' without excluding known non-service depts. AMI Guaranteed Maintenance program has 'maintenance' in its title. Fallback filter was AND (i.SaleDept >= 40 AND i.SaleDept <= 75) which included Rental (60), Lease (70), Demo (74), AMI (75), Misc (80).",
+      "solution": "Added AND Dept NOT IN (60, 70, 74, 75, 80) to the Dept table lookup query. Changed fallback from >= 40 AND <= 75 to IN (40, 45, 47). Added logger.info to log which dept IDs are actually matched.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "multi_tenant_impact": "Medium - other tenants may also have non-service depts in the 40-75 range. The NOT IN exclusion list is IPS-specific but the fallback fix is universal.",
+      "testing_passed": true,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "When using LIKE keyword matching on Dept.Title to identify service departments, always exclude known non-service dept codes explicitly. The fallback filter should use IN (specific codes) not a range, as ranges are too broad."
+    },
+    {
+      "ticket_id": "TKT-2026-0034",
+      "type": "documentation",
+      "component": "Currie Service - Service COGS Model",
+      "organization": "IPS (ind004)",
+      "issue_summary": "John asked whether service COGS includes parts costs and whether van maintenance/leases are included. The KPI tooltip was unclear.",
+      "root_cause": "KPI help text for Total Service Revenue and Total Service GP did not mention parts. Prior email incorrectly stated 'service revenue does not include parts'.",
+      "solution": "Updated KPI_HELP tooltips in CurrieService.jsx to explicitly state: (1) Parts ARE included in both revenue and COGS - fully-loaded Currie model. (2) Van Maintenance (5175701/5175702) and Van Leases/Internal Rental to Service (5192701/5192702) are in service COGS. (3) Both sides include parts so GP% is valid.",
+      "files_modified": [
+        "reporting-frontend/src/components/CurrieService.jsx"
+      ],
+      "multi_tenant_impact": "Low - tooltip text only, no data logic change",
+      "testing_passed": true,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "IPS Service COGS is a fully-loaded Currie model: labor + parts cost + van maintenance + van leases + nonbillable + warranty + rework. Parts revenue and parts COGS are BOTH included. GP% is valid and reflects the full service profit margin."
+    },
+    {
+      "ticket_id": "TKT-2026-0035",
+      "type": "documentation",
+      "component": "Customer Profitability - Parts Cost Discrepancy (QUA001)",
+      "organization": "IPS (ind004)",
+      "issue_summary": "John reported QUA001 (Quaker City Castings) shows high parts cost which is much higher than what appears on their invoices in Softbase.",
+      "root_cause": "WOParts.Cost is the STANDARD COST from Softbase's item master at the time the part was added to the WO - not the actual purchase price. If standard costs are stale or incorrectly set up in Softbase, the report shows inflated parts costs that don't match invoices.",
+      "solution": "(1) Added prominent yellow warning banner to Customer Profitability Report Notes section explaining the standard cost issue. (2) Updated notes.costs text to include the standard cost caveat. (3) WO drill-down (TKT-0030) allows John to see exactly which parts on which WOs are driving the cost so he can verify standard cost rates in Softbase.",
+      "files_modified": [
+        "reporting-frontend/src/components/CustomerProfitability.jsx",
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "multi_tenant_impact": "Medium - standard cost vs. actual cost discrepancy is a universal Softbase issue. Warning applies to all tenants.",
+      "testing_passed": true,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "WOParts.Cost = standard cost from item master, NOT actual purchase price. Always caveat parts cost figures with this note. If a customer shows unexpectedly high parts costs, the first step is to check the standard cost rates in Softbase for the parts used on their WOs."
     }
   ],
-  "last_updated": "2026-03-05T14:00:00.000000",
   "additional_fixes": [
     {
       "ticket_id": "TKT-2026-0031",
       "type": "bug",
-      "component": "Currie Service — Rental Fleet Metrics",
+      "component": "Currie Service \u2014 Rental Fleet Metrics",
       "organization": "IPS (ind004)",
       "issue_summary": "Rental Fleet Metrics section blank on Currie Service page",
       "root_cause": "get_rental_fleet_metrics() used PostDate as the date filter column in two GLDetail queries. PostDate does not exist in the IPS Azure SQL schema. The correct column is EffectiveDate, which is used universally across all other GLDetail queries in the codebase.",
@@ -561,7 +609,7 @@
       "files_modified": [
         "reporting-backend/src/routes/currie_report.py"
       ],
-      "multi_tenant_impact": "Affects any org using Currie Service page — both ben002 and ind004 use EffectiveDate",
+      "multi_tenant_impact": "Affects any org using Currie Service page \u2014 both ben002 and ind004 use EffectiveDate",
       "testing_passed": false,
       "date_fixed": "2026-03-05",
       "lessons_learned": "GOLDEN RULE: GLDetail date column is ALWAYS EffectiveDate. Never use PostDate, TransDate, or Date. This applies to both ben002 (Currie) and ind004 (IPS) schemas."
@@ -569,7 +617,7 @@
     {
       "ticket_id": "TKT-2026-0032",
       "type": "bug",
-      "component": "PostgreSQL Startup — Migration Deadlock",
+      "component": "PostgreSQL Startup \u2014 Migration Deadlock",
       "organization": "all",
       "issue_summary": "Noisy ERROR logs on every Railway deploy: deadlock on ALTER TABLE forecast_history ADD COLUMN",
       "root_cause": "All 4 Gunicorn workers boot simultaneously and all call create_tables() which runs ALTER TABLE DDL. Two workers deadlock trying to acquire AccessExclusiveLock on the same table. The migration still succeeds on one worker but leaves ERROR noise in logs.",
@@ -577,15 +625,15 @@
       "files_modified": [
         "reporting-backend/src/services/postgres_service.py"
       ],
-      "multi_tenant_impact": "Affects all orgs — this is a startup-time issue on Railway with 4 Gunicorn workers",
+      "multi_tenant_impact": "Affects all orgs \u2014 this is a startup-time issue on Railway with 4 Gunicorn workers",
       "testing_passed": false,
       "date_fixed": "2026-03-05",
-      "lessons_learned": "When running DDL migrations at startup in a multi-worker environment, always use an advisory lock to serialize the migration. pg_try_advisory_lock() is non-blocking — it returns false immediately if another worker holds the lock, which is exactly what we want."
+      "lessons_learned": "When running DDL migrations at startup in a multi-worker environment, always use an advisory lock to serialize the migration. pg_try_advisory_lock() is non-blocking \u2014 it returns false immediately if another worker holds the lock, which is exactly what we want."
     },
     {
       "ticket_id": "PATTERN-004",
       "type": "pattern",
-      "component": "Azure SQL — STRING_AGG",
+      "component": "Azure SQL \u2014 STRING_AGG",
       "organization": "all",
       "issue_summary": "Azure SQL does not support STRING_AGG(DISTINCT ...) syntax",
       "root_cause": "Azure SQL Server (and SQL Server in general) does not allow DISTINCT inside STRING_AGG(). Attempting STRING_AGG(DISTINCT col, ', ') raises error 102: Incorrect syntax near ','.",
@@ -593,7 +641,7 @@
       "files_modified": [
         "reporting-backend/src/routes/currie_report.py"
       ],
-      "multi_tenant_impact": "CRITICAL — affects any query using STRING_AGG(DISTINCT) on Azure SQL",
+      "multi_tenant_impact": "CRITICAL \u2014 affects any query using STRING_AGG(DISTINCT) on Azure SQL",
       "testing_passed": true,
       "date_fixed": "2026-03-05",
       "lessons_learned": "GOLDEN RULE for Azure SQL aggregation: STRING_AGG does NOT support DISTINCT. Always wrap in a subquery: SELECT STRING_AGG(x, ', ') WITHIN GROUP (ORDER BY x) FROM (SELECT DISTINCT x FROM table WHERE ...) AS d"

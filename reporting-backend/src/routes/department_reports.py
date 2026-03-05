@@ -10388,26 +10388,33 @@ def register_department_routes(reports_bp):
             dept_wo_filter = ""
             if department == 'service':
                 # Dynamically look up service-related department IDs from the Dept table
+                # Exclude known non-service depts (Rental=60, Lease=70, Demo=74, AMI/Alside=75, Misc=80)
+                # to prevent 'maintenance' keyword from matching AMI Guaranteed Maintenance contracts
                 service_dept_query = f"""
                 SELECT Dept FROM {schema}.Dept
-                WHERE LOWER(Title) LIKE '%service%'
+                WHERE (
+                    LOWER(Title) LIKE '%service%'
                    OR LOWER(Title) LIKE '%shop%'
                    OR LOWER(Title) LIKE '%pm%'
                    OR LOWER(Title) LIKE '%preventive%'
                    OR LOWER(Title) LIKE '%warranty%'
                    OR LOWER(Title) LIKE '%maintenance%'
+                )
+                AND Dept NOT IN (60, 70, 74, 75, 80)
                 """
                 try:
                     service_depts = db.execute_query(service_dept_query)
                     if service_depts:
                         dept_ids = ','.join([str(row['Dept']) for row in service_depts])
+                        logger.info(f"Customer Profitability: service dept IDs from Dept table: {dept_ids}")
                         dept_invoice_filter = f"AND i.SaleDept IN ({dept_ids})"
                     else:
-                        # Fallback: use common service SaleCode patterns
-                        dept_invoice_filter = "AND (i.SaleDept >= 40 AND i.SaleDept <= 75)"
+                        # Fallback: use known IPS service dept codes (Road=40, Shop=45, PM=47)
+                        logger.warning("Customer Profitability: Dept table returned no service depts, using fallback IN (40, 45, 47)")
+                        dept_invoice_filter = "AND i.SaleDept IN (40, 45, 47)"
                 except Exception as dept_err:
                     logger.warning(f"Could not query Dept table for service depts: {dept_err}")
-                    dept_invoice_filter = "AND (i.SaleDept >= 40 AND i.SaleDept <= 75)"
+                    dept_invoice_filter = "AND i.SaleDept IN (40, 45, 47)"
                 dept_wo_filter = "AND wo.Type IN ('S', 'SH', 'PM')"
             elif department == 'parts':
                 # Dynamically look up parts department IDs
@@ -10785,12 +10792,13 @@ def register_department_routes(reports_bp):
                 'customers': customer_data,
                 'fire_list': fire_list,
                 'notes': {
-                    'revenue': 'All invoice revenue (all sale codes)',
-                    'costs': 'Labor + Parts + Misc from Work Orders',
+                    'revenue': 'Invoice revenue from InvoiceReg for the selected period and department.',
+                    'costs': 'WO costs from WOLabor (labor at cost rate), WOParts (parts at standard cost rate from item master), and WOMisc. IMPORTANT: WOParts.Cost is the standard cost rate set in Softbase\'s item master — it may differ from actual purchase cost if standard costs are stale or incorrectly set up. If a customer shows unexpectedly high parts costs, verify the standard cost rates in Softbase for the parts used on their WOs.',
                     'health_healthy': 'Margin >= 30%',
                     'health_warning': 'Margin 0-30%',
                     'health_critical': 'Margin < 0% (unprofitable)',
-                    'fire_list_criteria': 'Margin < 0% AND Revenue < $10,000'
+                    'fire_list_criteria': 'Margin < 0% AND Revenue < $10,000',
+                    'standard_cost_warning': 'Parts costs shown here use WOParts.Cost (standard cost from Softbase item master). If costs appear inflated vs. invoices, check the standard cost rate for those parts in Softbase. This is a known discrepancy source when standard costs have not been updated to reflect current purchase prices.'
                 }
             })
 

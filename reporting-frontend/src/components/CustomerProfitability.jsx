@@ -767,13 +767,23 @@ const CustomerProfitability = ({ department = 'all' }) => {
           <CardTitle>Report Notes</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p><strong>Revenue:</strong> {data.notes.revenue}</p>
-            <p><strong>Costs:</strong> {data.notes.costs}</p>
-            <p><strong>Healthy:</strong> {data.notes.health_healthy}</p>
-            <p><strong>Warning:</strong> {data.notes.health_warning}</p>
-            <p><strong>Critical:</strong> {data.notes.health_critical}</p>
-            <p><strong>Fire List Criteria:</strong> {data.notes.fire_list_criteria}</p>
+          <div className="space-y-3 text-sm">
+            {/* Standard cost warning — prominent yellow banner */}
+            <div className="flex gap-2 rounded-md border border-yellow-300 bg-yellow-50 p-3">
+              <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-yellow-800">Parts Cost Accuracy Note</p>
+                <p className="text-yellow-700 mt-0.5">{data.notes.standard_cost_warning || 'Parts costs use WOParts.Cost (standard cost from Softbase item master). If a customer shows unexpectedly high parts costs vs. their invoices, verify the standard cost rates for those parts in Softbase — stale standard costs are a common source of discrepancy.'}</p>
+              </div>
+            </div>
+            <div className="space-y-2 text-muted-foreground">
+              <p><strong>Revenue:</strong> {data.notes.revenue}</p>
+              <p><strong>Costs:</strong> {data.notes.costs}</p>
+              <p><strong>Healthy:</strong> {data.notes.health_healthy}</p>
+              <p><strong>Warning:</strong> {data.notes.health_warning}</p>
+              <p><strong>Critical:</strong> {data.notes.health_critical}</p>
+              <p><strong>Fire List Criteria:</strong> {data.notes.fire_list_criteria}</p>
+            </div>
           </div>
         </CardContent>
       </Card>
