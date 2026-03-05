@@ -21,7 +21,7 @@ import {
 const KPI_HELP = {
   service_gp_pct: {
     title: 'Service Gross Profit %',
-    what: 'Service Gross Profit Percentage measures how much of your service revenue remains after direct costs (technician wages, parts used on jobs, sublet costs). The Currie benchmark for service departments is 65%. This is the single most important measure of your service department\'s pricing and cost control effectiveness.',
+    what: 'Service Gross Profit Percentage measures how much of your service revenue remains after direct labor costs (technician wages, van maintenance, warranty, nonbillable time). Per the Currie model, parts are tracked separately under the Parts department and are not included in this calculation. The Currie benchmark for service departments is 65%. This is the single most important measure of your service department\'s pricing and cost control effectiveness.',
     formula: '(Service Revenue − Service COGS) ÷ Service Revenue × 100',
     actions: [
       'Review and increase labor rates — ensure your effective rate keeps pace with technician pay increases',

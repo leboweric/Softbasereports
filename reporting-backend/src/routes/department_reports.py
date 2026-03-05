@@ -10352,6 +10352,10 @@ def register_department_routes(reports_bp):
             
             # Schema-specific hardcoded internal account exclusions
             # These always apply regardless of org settings configuration
+            # Bennett (ben002): No hardcoded exclusions — internal accounts are configured
+            #   via org settings (excluded_bill_to_customers) on a per-deployment basis.
+            # IPS (ind004): IPS110 (New EQ Internal) and IPS130 (Used EQ Internal) are
+            #   always excluded because they are IPS's own fleet maintenance accounts.
             SCHEMA_INTERNAL_ACCOUNTS = {
                 'ind004': ['IPS110', 'IPS130'],  # IPS: New EQ Internal, Used EQ Internal
             }
@@ -10401,8 +10405,10 @@ def register_department_routes(reports_bp):
             dept_wo_filter = ""
             if department == 'service':
                 # Dynamically look up service-related department IDs from the Dept table
-                # Exclude known non-service depts (Rental=60, Lease=70, Demo=74, AMI/Alside=75, Misc=80)
-                # to prevent 'maintenance' keyword from matching AMI Guaranteed Maintenance contracts
+                # Exclude known non-service depts by dept code:
+                #   60=Rental, 70=Lease, 74=Demo, 75=AMI/Alside, 80=Misc (IPS codes)
+                #   Bennett uses 60=Rental, 80=Transportation — these are also excluded by this filter
+                # This prevents 'maintenance' keyword from matching AMI Guaranteed Maintenance contracts
                 service_dept_query = f"""
                 SELECT Dept FROM {schema}.Dept
                 WHERE (
