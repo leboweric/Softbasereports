@@ -48,6 +48,7 @@ RESOURCES = {
     'vital_anonymous_questions': 'VITAL Worklife Anonymous Questions for HR with AI trend analysis',
     'vital_finance': 'VITAL Worklife Finance billing management and revenue tracking',
     'vital_mobile_app': 'VITAL Worklife Mobile App analytics from GA4 BigQuery',
+    'vital_claude_analytics': 'VITAL Worklife Claude AI-powered analytics (case data and sentiment analysis)',
     'customer_churn': 'Customer churn analysis with AI-powered insights',
     'eds_dashboard': "Ed's Dashboard - Sales GP Report by Branch and Department",
     'gl_mapping': 'GL Account Mapping - manage chart of accounts for tenant',
@@ -179,13 +180,13 @@ ROLE_PERMISSIONS = {
     # VITAL Worklife roles
     'VITAL Admin': {
         'resources': [
-            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_high_fives', 'vital_anonymous_questions', 'vital_finance', 'vital_mobile_app', 'user_management'
+            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_high_fives', 'vital_anonymous_questions', 'vital_finance', 'vital_mobile_app', 'vital_claude_analytics', 'user_management'
         ],
         'actions': ACTIONS,  # All actions
     },
     'VITAL User': {
         'resources': [
-            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_high_fives', 'vital_anonymous_questions', 'vital_finance', 'vital_mobile_app'
+            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_high_fives', 'vital_anonymous_questions', 'vital_finance', 'vital_mobile_app', 'vital_claude_analytics'
         ],
         'actions': ['view', 'export'],
     },
@@ -466,6 +467,13 @@ NAVIGATION_CONFIG = {
         'path': 'vital-anonymous-questions',
         'required_resource': 'vital_anonymous_questions',
         'order': 29,
+    },
+    'vital-claude-analytics': {
+        'label': 'Claude Analytics',
+        'icon': 'Brain',
+        'path': 'vital-claude-analytics',
+        'required_resource': 'vital_claude_analytics',
+        'order': 30,
     },
     'vital-finance': {
         'label': 'Finance',

@@ -122,6 +122,7 @@ from src.routes.vital_provider_network import vital_provider_network_bp
 from src.routes.vital_sentiment import vital_sentiment_bp
 from src.routes.vital_operations import vital_operations_bp
 from src.routes.vital_forecasting import vital_forecasting_bp
+from src.routes.vital_claude_analytics import vital_claude_bp
 from src.routes.aloha_setup import aloha_setup_bp
 from src.routes.aloha_data_sources import aloha_data_sources_bp
 from src.routes.aloha_dashboard import aloha_dashboard_bp
@@ -437,6 +438,7 @@ app.register_blueprint(vital_provider_network_bp)
 app.register_blueprint(vital_sentiment_bp)
 app.register_blueprint(vital_operations_bp)
 app.register_blueprint(vital_forecasting_bp)
+app.register_blueprint(vital_claude_bp)
 app.register_blueprint(customer_churn_bp)
 app.register_blueprint(gl_mapping_bp, url_prefix='/api/gl-mapping')
 app.register_blueprint(support_tickets_bp)

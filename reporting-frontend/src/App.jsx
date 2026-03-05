@@ -36,6 +36,7 @@ import VitalAzureSQLDashboard from './components/vital/VitalAzureSQLDashboard'
 import VitalZoomDashboard from './components/vital/VitalZoomDashboard'
 import VitalHighFivesDashboard from './components/vital/VitalHighFivesDashboard'
 import VitalAnonymousQuestionsDashboard from './components/vital/VitalAnonymousQuestionsDashboard'
+import VitalClaudeAnalytics from './components/vital/VitalClaudeAnalytics'
 import VitalFinanceBilling from './components/vital/VitalFinanceBilling'
 import VitalMobileAppDashboard from './components/vital/VitalMobileAppDashboard'
 import VitalCustomer360 from './components/vital/VitalCustomer360'
@@ -281,6 +282,8 @@ function App() {
         return <VitalHighFivesDashboard user={user} organization={organization} />
       case 'vital-anonymous-questions':
         return <VitalAnonymousQuestionsDashboard user={user} organization={organization} />
+      case 'vital-claude-analytics':
+        return <VitalClaudeAnalytics user={user} organization={organization} />
       case 'vital-finance':
         return <VitalFinanceBilling user={user} organization={organization} />
       case 'vital-mobile-app':
