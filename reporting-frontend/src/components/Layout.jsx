@@ -22,7 +22,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
   // Menu order: Dashboard, Finance, then other items
   // Removed vital-quickbooks (reports moved to Finance)
   // Renamed: vital-hubspot -> Sales & Marketing, vital-case-data -> CMS, vital-azure-sql -> CMS Data
-  const desiredOrder = ['eds-dashboard', 'dashboard', 'aloha-dashboard', 'aloha-financials', 'aloha-inventory', 'aloha-orders', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'currie', 'currie-service', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'gl-mapping', 'support-tickets', 'tenant-admin', 'report-visibility', 'vital-data-sources', 'aloha-data-sources', 'user-management']
+  const desiredOrder = ['eds-dashboard', 'dashboard', 'aloha-dashboard', 'aloha-financials', 'aloha-inventory', 'aloha-orders', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'vital-claude-analytics', 'parts', 'service', 'rental', 'accounting', 'currie', 'currie-service', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'gl-mapping', 'support-tickets', 'tenant-admin', 'report-visibility', 'vital-data-sources', 'aloha-data-sources', 'user-management']
   
   const navItems = hasNavigation 
     ? desiredOrder
