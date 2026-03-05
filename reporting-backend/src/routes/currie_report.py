@@ -950,17 +950,22 @@ def get_technician_count(start_date, end_date):
     try:
         schema = get_tenant_schema()
 
+        # NOTE: Azure SQL does NOT support STRING_AGG(DISTINCT ...) — must use a subquery
+        # to deduplicate names before aggregating.
         query = f"""
         SELECT
-            COUNT(DISTINCT wl.MechanicName) as technician_count,
-            STRING_AGG(DISTINCT wl.MechanicName, ', ') as technician_names
-        FROM {schema}.WOLabor wl
-        INNER JOIN {schema}.WO wo ON wl.WONo = wo.WONo
-        WHERE wo.OpenDate >= %s
-          AND wo.OpenDate <= %s
-          AND wl.MechanicName IS NOT NULL
-          AND wl.MechanicName != ''
-          AND wo.DeletionTime IS NULL
+            COUNT(*) as technician_count,
+            STRING_AGG(MechanicName, ', ') WITHIN GROUP (ORDER BY MechanicName) as technician_names
+        FROM (
+            SELECT DISTINCT wl.MechanicName
+            FROM {schema}.WOLabor wl
+            INNER JOIN {schema}.WO wo ON wl.WONo = wo.WONo
+            WHERE wo.OpenDate >= %s
+              AND wo.OpenDate <= %s
+              AND wl.MechanicName IS NOT NULL
+              AND wl.MechanicName != ''
+              AND wo.DeletionTime IS NULL
+        ) AS distinct_techs
         """
         
         results = get_sql_service().execute_query(query, [start_date, end_date])
