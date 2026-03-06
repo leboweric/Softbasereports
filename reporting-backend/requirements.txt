@@ -45,3 +45,4 @@ rapidFuzz==3.6.1
 google-cloud-bigquery>=3.0.0
 sendgrid
 anthropic>=0.25.0
+# Force rebuild Thu Mar  5 19:37:29 EST 2026
