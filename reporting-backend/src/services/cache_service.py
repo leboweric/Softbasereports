@@ -171,6 +171,23 @@ class CacheService:
         self.delete("dashboard:")
         logger.info("Dashboard cache invalidated")
 
+    def flush_all(self):
+        """Flush ALL cache entries (Redis flushdb or clear in-memory dict)"""
+        try:
+            if self.redis_client:
+                count = self.redis_client.dbsize()
+                self.redis_client.flushdb()
+                logger.info(f"Flushed entire Redis cache ({count} keys)")
+                return count
+            else:
+                count = len(self.memory_cache)
+                self.memory_cache.clear()
+                logger.info(f"Flushed in-memory cache ({count} keys)")
+                return count
+        except Exception as e:
+            logger.error(f"Cache flush_all error: {str(e)}")
+            return 0
+
 
     def get_status(self) -> dict:
         """Return cache status for diagnostics"""

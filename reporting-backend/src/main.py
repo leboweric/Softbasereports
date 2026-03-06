@@ -619,6 +619,13 @@ with app.app_context():
         # Don't crash the app if RBAC init fails
         pass
 
+    # Flush Redis cache on startup so new deployments always serve fresh data
+    try:
+        flushed = cache_service.flush_all()
+        print(f"✅ Cache flushed on startup ({flushed} keys cleared) — fresh data will be served")
+    except Exception as e:
+        print(f"⚠️  Cache flush on startup failed (non-fatal): {e}")
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
