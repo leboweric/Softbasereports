@@ -708,5 +708,109 @@
       "lessons_learned": "GOLDEN RULE for Azure SQL aggregation: STRING_AGG does NOT support DISTINCT. Always wrap in a subquery: SELECT STRING_AGG(x, ', ') WITHIN GROUP (ORDER BY x) FROM (SELECT DISTINCT x FROM table WHERE ...) AS d"
     }
   ],
-  "total_entries": 42
+  "total_entries": 49,
+  "session_2026_03_05_evening": [
+    {
+      "ticket_id": "BIZ-RULE-001",
+      "type": "business_rule",
+      "component": "Customer Profitability / department_reports.py",
+      "organization": "IPS (ind004)",
+      "title": "IPS Softbase: WO numbers starting with 9 are QUOTES, not Work Orders",
+      "problem": "Quote 914001168 (Tires + Install, $1,357.28 misc cost) was being included in the Customer Profitability cost calculation for Cherry Ridge Greenhouse (CHE008), making them appear as a Critical -190.1% GP customer when in reality the only actual WO was a $163.95 switch repair.",
+      "root_cause": "The Customer Profitability WO cost queries (labor, parts, misc) had no filter to exclude quote records. In Softbase Evolution at IPS, any WO number beginning with '9' is a quote — no work has been committed and no cost should be recognized.",
+      "fix": "Added AND wo.WONo NOT LIKE '9%' to all four WO cost queries in the Customer Profitability endpoint: labor cost aggregation, parts cost aggregation, misc cost aggregation, and the WO drill-down detail endpoint.",
+      "files_changed": [
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "lesson": "CRITICAL IPS BUSINESS RULE: In Softbase Evolution at IPS (ind004), WO numbers starting with '9' are QUOTES, not actual work orders. Quotes must NEVER be included in any cost calculation, customer profitability report, or financial metric. Always add AND wo.WONo NOT LIKE '9%' to any WO-based cost query for IPS. Confirmed by John Amrhein, IPS Service Manager.",
+      "date_added": "2026-03-05"
+    },
+    {
+      "ticket_id": "BIZ-RULE-002",
+      "type": "business_rule",
+      "component": "GL Accounts / Currie Service P&L",
+      "organization": "IPS (ind004)",
+      "title": "IPS Currie Model: Parts revenue and cost must be EXCLUDED from Service P&L",
+      "problem": "Parts revenue (4133xxx-4158xxx) and parts cost (5133xxx-5158xxx) accounts were included in the Service customer_labor GL mapping, commingling parts and service in the Currie Service P&L. This inflated Service Revenue and distorted Service GP%.",
+      "root_cause": "Initial GL mapping included all WO-related revenue and cost accounts in the service customer_labor category without separating parts from labor.",
+      "fix": "Removed all Road Parts, Shop Parts, and PM Parts revenue and COGS accounts from the IPS customer_labor Currie mapping in gl_accounts_loader.py. Those accounts remain in the Parts department mapping. Confirmed correct by Amie Baringer (IPS Controller) via C1 sale code GL detail.",
+      "files_changed": [
+        "reporting-backend/src/config/gl_accounts_loader.py",
+        "reporting-frontend/src/components/CurrieService.jsx"
+      ],
+      "lesson": "Currie Model rule: Service Revenue = labor billed only (field, shop, PM labor, internal, warranty, shop supplies). Parts billed on service WOs belong in the Parts department P&L. Service GP% should reflect labor efficiency, not parts margin. This is confirmed IPS business logic.",
+      "date_added": "2026-03-05"
+    },
+    {
+      "ticket_id": "BIZ-RULE-003",
+      "type": "business_rule",
+      "component": "Customer Profitability / department_reports.py",
+      "organization": "IPS (ind004)",
+      "title": "IPS C1 Sale Code: PM-only, both Canton (701) and Cleveland (702) branches",
+      "problem": "Unclear whether C1 sale code was specific to PM or broader.",
+      "root_cause": "N/A — clarification from Amie Baringer.",
+      "fix": "No code change needed. C1 is already correctly categorized as PM service.",
+      "files_changed": [],
+      "lesson": "IPS BUSINESS RULE: Sale code C1 is EXCLUSIVELY used for Preventive Maintenance (PM) at both Canton (branch 701) and Cleveland (branch 702). GL accounts: Parts Sale 4138601/4138602, Parts COG 5138601/5138602, Labor Sale 4157701/4157702, Labor COG 5157701/5157702, MISC (shop supplies) 4158701. Parts side of C1 belongs in Parts dept per Currie model; labor side belongs in Service dept.",
+      "date_added": "2026-03-05"
+    },
+    {
+      "ticket_id": "BIZ-RULE-004",
+      "type": "business_rule",
+      "component": "Customer Profitability / department_reports.py",
+      "organization": "IPS (ind004)",
+      "title": "IPS Internal Accounts: IPS110, IPS130 excluded from Customer Profitability (invoice-side)",
+      "problem": "IPS110 and IPS130 were appearing as customers in the Customer Profitability report.",
+      "root_cause": "These are IPS own-fleet maintenance billing accounts, not real external customers.",
+      "fix": "Hardcoded in SCHEMA_INTERNAL_ACCOUNTS for ind004 in department_reports.py.",
+      "files_changed": [
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "lesson": "IPS INTERNAL ACCOUNTS (exclude from Customer Profitability): IPS110 (New EQ Internal), IPS130 (Used EQ Internal). These are confirmed own-fleet maintenance accounts. IPS140, IPS145, IPC140, IPC145 are intercompany billing accounts excluded via excluded_bill_to_customers org setting.",
+      "date_added": "2026-03-05"
+    },
+    {
+      "ticket_id": "BIZ-RULE-005",
+      "type": "business_rule",
+      "component": "Customer Profitability / department_reports.py",
+      "organization": "Bennett (ben002)",
+      "title": "Bennett Internal Accounts: 9 accounts excluded from Customer Profitability",
+      "problem": "Nine internal 900xxx cost-center accounts were appearing as customers in the Bennett Customer Profitability report, showing up to $251K in apparent revenue.",
+      "root_cause": "Bennett's internal fleet maintenance, equipment prep, rework, and warranty accounts were not excluded from the report.",
+      "fix": "Hardcoded in SCHEMA_INTERNAL_ACCOUNTS for ben002 in department_reports.py.",
+      "files_changed": [
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "lesson": "BENNETT INTERNAL ACCOUNTS (exclude from Customer Profitability): 900066 (ROSEAU RENTAL FLEET), 900006 (RENTAL FLEET - EXPENSE), 900004 (USED EQUIP. PREP-EXPENSE), 900037 (SERVICE POLICY ADJUSTMNTS), 900001 (NEW EQUIP PREP - EXPENSE), 900036 (SVC REWORK/SVC WARRANTY), 900025 (VEHICLE MAINTENANCE SVC), 900043 (NEW EQ. INTNL RNTL/DEMO), 900068 (Road Service). All are 900xxx customer numbers.",
+      "date_added": "2026-03-05"
+    },
+    {
+      "ticket_id": "BIZ-RULE-006",
+      "type": "business_rule",
+      "component": "GL Accounts / IPS Internal Account GL Mapping",
+      "organization": "IPS (ind004)",
+      "title": "IPS Internal Accounts GL Mapping: IPS140/145/IPC140/145 post to cost accounts only, never to service revenue",
+      "problem": "John asked whether IPS140, IPS145, IPC140, IPC145 internal accounts were distorting the Currie Service P&L.",
+      "root_cause": "N/A — clarification from Amie Baringer via SampleAccountDistribution-Internal.xltx spreadsheet.",
+      "fix": "No code change needed. Confirmed clean.",
+      "files_changed": [],
+      "lesson": "IPS INTERNAL ACCOUNT GL MAPPING (confirmed by Amie Baringer): IPS140 posts to 6930001 (Internal Labor), 1129901 (Parts Inventory), 1150001 (WIP-Labor), 5175701 (Van Maintenance). IPS145 posts to 6930001, 1150001, 5322701 (Nonbillable Shop Time). IPC140 posts to 6930002, 1150001, 5311702 (Nonbillable Field Time). IPC145 has no historical data. NONE post to 4xxxxxx revenue accounts. The cost side (5175701, 5322701, 5311702) is already correctly included in Service COGS mapping. These accounts are clean and require no special handling.",
+      "date_added": "2026-03-05"
+    },
+    {
+      "ticket_id": "BIZ-RULE-007",
+      "type": "business_rule",
+      "component": "Active Technician Count / currie_report.py",
+      "organization": "IPS (ind004)",
+      "title": "IPS Active Technician Count: use WOLabor.MechanicName, not WO header",
+      "problem": "Active technician count was showing incorrect numbers because WO header Technician field is often blank or inconsistently filled.",
+      "root_cause": "The count was reading from the WO.Technician header field which is unreliable at IPS.",
+      "fix": "Switched to counting DISTINCT MechanicName from WOLabor table (actual time entry records). Result: 31 active technicians for trailing 12 months.",
+      "files_changed": [
+        "reporting-backend/src/routes/currie_report.py"
+      ],
+      "lesson": "IPS BUSINESS RULE: Always use WOLabor.MechanicName (not WO.Technician) for active technician counts at IPS. The WO header Technician field is unreliable. WOLabor records are created when a tech clocks time and are the authoritative source.",
+      "date_added": "2026-03-05"
+    }
+  ]
 }
