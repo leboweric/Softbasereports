@@ -10528,12 +10528,14 @@ def register_department_routes(reports_bp):
             FROM {schema}.InvoiceReg i
             LEFT JOIN {schema}.Customer c ON i.ShipTo = c.Number
             LEFT JOIN {schema}.Customer bc ON i.BillTo = bc.Number
+            LEFT JOIN {schema}.WO wo ON i.InvoiceNo = wo.WONo
             WHERE 1=1
                 {date_filter}
                 {dept_invoice_filter}
                 {branch_invoice_filter}
                 AND i.ShipTo IS NOT NULL
                 AND i.ShipTo != ''
+                AND (wo.Type IS NULL OR wo.Type NOT IN ('E', 'EU', 'EN'))  -- Exclude equipment sale WOs
             GROUP BY i.ShipTo
             HAVING SUM(COALESCE(i.GrandTotal, 0)) >= {min_revenue}
             ORDER BY total_revenue DESC
