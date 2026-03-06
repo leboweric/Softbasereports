@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-03-05T09:58:12",
+  "last_updated": "2026-03-05T19:48:28",
   "fixes": [
     {
       "ticket_id": "MANUAL-001",
@@ -622,6 +622,40 @@
       "fix": "Wrap CHAR columns in RTRIM() when using IN/NOT IN filters: RTRIM(i.ShipTo) NOT IN ('IPS110','IPS130'). Known CHAR columns in Softbase Evolution: InvoiceReg.ShipTo, InvoiceReg.BillTo, WO.ShipTo, WO.BillTo, Customer.Number.",
       "files_changed": [],
       "lesson": "When a NOT IN filter appears to be correctly built but is not working, check if the column is CHAR(n) type and add RTRIM()."
+    },
+    {
+      "ticket_id": "TKT-2026-0028-WO",
+      "type": "enhancement",
+      "component": "reporting-backend/src/routes/department_reports.py, reporting-frontend/src/components/departments/PartsReport.jsx",
+      "organization": "IPS (requested), all (works for all)",
+      "issue_summary": "Open parts work orders table missing Salesman column \u2014 user wanted to see which salesman is assigned to each open WO",
+      "root_cause": "The open-work-orders-details endpoint queried WO table but did not include the WO.Salesman field in the SELECT statement",
+      "solution": "Added WO.Salesman to the backend SQL query in the open-work-orders-details endpoint. Added Salesman column to the frontend table (header, body, CSV export) in PartsReport.jsx.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py",
+        "reporting-frontend/src/components/departments/PartsReport.jsx"
+      ],
+      "multi_tenant_impact": "Works for all orgs \u2014 WO.Salesman is a standard field in all tenant schemas. Shows dash when no salesman is assigned.",
+      "testing_passed": true,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "The WO table has a Salesman field that maps to the Salesman lookup table. When adding columns to existing tables, always update: (1) backend SQL query, (2) frontend table header, (3) frontend table body, (4) CSV export function. The Salesman field may be NULL for some WOs \u2014 always handle with a dash fallback."
+    },
+    {
+      "ticket_id": "TKT-2026-0029-CONTEST",
+      "type": "enhancement",
+      "component": "reporting-backend/src/routes/department_reports.py, reporting-frontend/src/components/departments/PartsEmployeePerformance.jsx",
+      "organization": "IPS (requested), all (works for all with Salesman table)",
+      "issue_summary": "Parts Contest page missing salesman information \u2014 user wanted to see which salesmen are associated with parts counter sales",
+      "root_cause": "The employee-performance endpoint did not include any salesman data. The Salesman table exists as a lookup table, and WO.Salesman links invoices to salesmen via InvoiceReg.InvoiceNo = WO.WONo join.",
+      "solution": "Backend: Added two new queries to employee-performance endpoint \u2014 (1) Salesman table lookup for full list, (2) JOIN InvoiceReg\u2192WO to get per-employee salesman breakdown. Added Salesman to employee-invoice-details endpoint. Frontend: Added Salesmen list card with pill badges, Salesman column in employee table, Salesman in invoice details, Salesman in CSV export.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py",
+        "reporting-frontend/src/components/departments/PartsEmployeePerformance.jsx"
+      ],
+      "multi_tenant_impact": "Works for all orgs with a Salesman table. For orgs without a Salesman table, the salesmen list gracefully degrades to empty (try/except). The WO.Salesman join works for all tenant schemas.",
+      "testing_passed": true,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "Key join pattern: InvoiceReg.InvoiceNo = WO.WONo links invoices to work orders, enabling access to WO.Salesman. The Salesman table is a lookup table (Name, DeletionTime) that exists in some schemas (e.g., ben002) but may not exist in all. Always wrap Salesman table queries in try/except for graceful degradation. For 'primary' assignment, use COUNT aggregation to find the most frequent salesman per employee."
     }
   ],
   "additional_fixes": [

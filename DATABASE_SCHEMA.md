@@ -167,6 +167,8 @@ AND (e.Customer = 0 OR e.Customer IS NULL)  -- Customer-owned filter
 - Customer field is boolean, BillTo has actual customer number
 - NO Department field - use SaleCode or SaleDept
 - Cost fields enable gross profit calculations
+- **Key Join**: InvoiceReg.InvoiceNo = WO.WONo links invoices to work orders (enables access to WO.Salesman, WO.Technician, etc.)
+- **Key Join**: InvoiceReg.WONo also maps to WO.WONo (sometimes InvoiceNo and WONo are the same value)
 
 ---
 
@@ -194,6 +196,8 @@ AND (e.Customer = 0 OR e.Customer IS NULL)  -- Customer-owned filter
 **Additional Columns Discovered**:
 - **ShipTo**: Ship-to customer number — different from BillTo. Used in rental reports to find the physical location of rented equipment. Join to Customer.Number.
 - **ControlNo**: Control number — used for cross-referencing with InvoiceReg.ControlNo
+- **Salesman**: Assigned salesman code/name. Links to the Salesman lookup table. May be NULL for some WOs. Used in Parts Contest to determine which salesman is associated with each work order/invoice.
+- **Writer**: The person who wrote/created the work order. Different from Salesman (who is the sales rep assigned to the customer).
 
 **CRITICAL DISCOVERY (2025-10-17): Status and Location columns DO NOT EXIST!**
 - ❌ **Status column**: Does not exist despite documentation
@@ -559,11 +563,19 @@ AND EffectiveDate <= '2025-10-31'
 ---
 
 #### Salesman
-**Purpose**: Sales representative definitions
+**Purpose**: Sales representative lookup table — maps salesman codes to names
 
 | Column | Type | Notes |
 |--------|------|-------|
+| Name | nvarchar | Salesman name (e.g., "Rod Hauer", "Todd Auge", "Kevin Buckman") |
 | SalesGroup | int | Sales group (links to Dept.SaleGroup) |
+| DeletionTime | datetime | Soft delete timestamp (NULL = active) |
+
+**Important Notes**:
+- This table may NOT exist in all tenant schemas (confirmed in ben002/Bennett, may be missing in others)
+- Always wrap queries in try/except for graceful degradation
+- Filter by `DeletionTime IS NULL` to get only active salesmen
+- To find which salesman is associated with an invoice: JOIN InvoiceReg.InvoiceNo = WO.WONo, then use WO.Salesman
 
 ---
 
