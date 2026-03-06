@@ -1,6 +1,6 @@
 """
 Softbase Reports Backend API
-Version: 1.0.5 - Quote exclusion (9%), Type-E WO exclusion, Bennett 900xxx exclusion, internal accounts fix
+Version: 1.0.6 - Internal labor revenue fix: split by bill-to customer code (IPS110/130/140/145/150/160)
 """
 import os
 import sys
@@ -633,8 +633,8 @@ def health_check():
         'status': 'healthy',
         'message': 'Softbase Reports API is running',
         'timestamp': datetime.utcnow().isoformat(),
-        'version': '1.0.5',
-        'features': ['quote-exclusion-9pct', 'type-e-wos-excluded', 'bennett-900xxx-excluded', 'internal-accounts-fix']
+        'version': '1.0.6',
+        'features': ['quote-exclusion-9pct', 'type-e-wos-excluded', 'bennett-900xxx-excluded', 'internal-accounts-fix', 'internal-labor-bill-to-split']
     }), 200
 
 @app.route('/', defaults={'path': ''})
