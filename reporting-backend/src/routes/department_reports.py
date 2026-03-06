@@ -10549,6 +10549,7 @@ def register_department_routes(reports_bp):
                 {branch_wo_filter}
                 AND wo.ShipTo IS NOT NULL
                 AND wo.ShipTo != ''
+                AND wo.WONo NOT LIKE '9%'  -- Exclude quotes (WO# starting with 9)
             GROUP BY wo.ShipTo
             """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter, branch_wo_filter=branch_wo_filter)
 
@@ -10567,6 +10568,7 @@ def register_department_routes(reports_bp):
                 {branch_wo_filter}
                 AND wo.ShipTo IS NOT NULL
                 AND wo.ShipTo != ''
+                AND wo.WONo NOT LIKE '9%'  -- Exclude quotes (WO# starting with 9)
             GROUP BY wo.ShipTo
             """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter, branch_wo_filter=branch_wo_filter)
 
@@ -10585,6 +10587,7 @@ def register_department_routes(reports_bp):
                 {branch_wo_filter}
                 AND wo.ShipTo IS NOT NULL
                 AND wo.ShipTo != ''
+                AND wo.WONo NOT LIKE '9%'  -- Exclude quotes (WO# starting with 9)
             GROUP BY wo.ShipTo
             """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter, branch_wo_filter=branch_wo_filter)
 
@@ -10939,6 +10942,7 @@ def register_department_routes(reports_bp):
                 {wo_date_filter}
                 {wo_type_filter}
                 AND wo.DeletionTime IS NULL
+                AND wo.WONo NOT LIKE '9%'  -- Exclude quotes (WO# starting with 9)
             ORDER BY COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) DESC
             """
 
