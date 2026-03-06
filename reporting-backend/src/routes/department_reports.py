@@ -2512,8 +2512,9 @@ def register_department_routes(reports_bp):
                 salesmen_result = db.execute_query(salesmen_query)
                 salesmen_list = list(set(row['Name'] for row in salesmen_result)) if salesmen_result else []
                 salesmen_list.sort()
+                logger.info(f"Salesmen list fetched: {salesmen_list}")
             except Exception as e:
-                logger.warning(f"Could not fetch salesmen list: {e}")
+                logger.error(f"Could not fetch salesmen list: {e}", exc_info=True)
                 salesmen_list = []
             
             # Fetch salesman per employee by joining InvoiceReg with WO
@@ -2545,8 +2546,9 @@ def register_department_routes(reports_bp):
                             emp_salesmen_map[emp] = []
                         if sm:  # Only add non-empty salesman
                             emp_salesmen_map[emp].append({'name': sm, 'count': cnt})
+                logger.info(f"Salesman by employee map: {emp_salesmen_map}")
             except Exception as e:
-                logger.warning(f"Could not fetch salesman by employee: {e}")
+                logger.error(f"Could not fetch salesman by employee: {e}", exc_info=True)
                 emp_salesmen_map = {}
             
             # Parse results
