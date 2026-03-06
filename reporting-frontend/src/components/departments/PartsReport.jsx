@@ -439,12 +439,13 @@ const PartsReport = ({ user, organization, onNavigate }) => {
   const exportToCSV = () => {
     if (!openWorkOrdersDetails) return
     
-    const headers = ['WO#', 'Opened', 'Days Open', 'Customer', 'Parts Count', 'Part Numbers', 'Parts Value', 'Misc', 'Total']
+    const headers = ['WO#', 'Opened', 'Days Open', 'Customer', 'Salesman', 'Parts Count', 'Part Numbers', 'Parts Value', 'Misc', 'Total']
     const rows = openWorkOrdersDetails.work_orders.map(wo => [
       wo.wo_number,
       wo.open_date,
       wo.days_open,
       wo.customer_name,
+      wo.salesman || '',
       wo.parts_count,
       wo.parts_list,
       wo.parts_total.toFixed(2),
@@ -993,6 +994,7 @@ const PartsReport = ({ user, organization, onNavigate }) => {
                           <TableHead>Opened</TableHead>
                           <TableHead className="text-center">Days Open</TableHead>
                           <TableHead>Customer</TableHead>
+                          <TableHead>Salesman</TableHead>
                           <TableHead className="text-center">Parts Count</TableHead>
                           <TableHead>Part Numbers</TableHead>
                           <TableHead className="text-right">Parts Value</TableHead>
@@ -1018,6 +1020,9 @@ const PartsReport = ({ user, organization, onNavigate }) => {
                             </TableCell>
                             <TableCell className="max-w-[200px] truncate" title={wo.customer_name}>
                               {wo.customer_name}
+                            </TableCell>
+                            <TableCell className="max-w-[150px] truncate" title={wo.salesman}>
+                              {wo.salesman || '—'}
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge variant="outline">
