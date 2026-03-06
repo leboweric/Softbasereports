@@ -429,8 +429,11 @@ def get_service_revenue(start_date, end_date):
         }
 
         if use_bill_to_split:
-            # --- Bill-to-aware query: join GLDetail to Invoice to get BillTo ---
-            # Revenue accounts that could be either customer or internal labor
+            # --- Bill-to-aware query: join GLDetail → WO to get BillTo customer code ---
+            # In Softbase/IPS: GLDetail.RefNo = WO.WONo (the WO number is the GL reference).
+            # WO.BillTo contains the customer code (e.g. IPS110, IPS130) that identifies
+            # interdepartmental WOs. InvoiceReg.InvoiceNo also = WO.WONo but InvoiceReg
+            # only has BillToName (text), not the customer code.
             cust_labor_rev_set = set(svc.get('customer_labor', {}).get('revenue', []))
             internal_bill_to_set = set(b.strip().upper() for b in internal_bill_to_customers)
             bill_to_list = "', '".join(internal_bill_to_customers)
@@ -439,34 +442,34 @@ def get_service_revenue(start_date, end_date):
             cogs_account_keys = list(cost_map.keys())
             cogs_exclusion = ("AND gld.AccountNo NOT IN ('" + "', '".join(cogs_account_keys) + "')") if cogs_account_keys else ""
 
-            # Query 1: Revenue rows — join to Invoice to get BillTo
+            # Query 1: Revenue rows — join GLDetail → WO on RefNo = WONo to get BillTo
             rev_query = f"""
             SELECT
                 gld.AccountNo,
-                RTRIM(LTRIM(UPPER(inv.BillTo))) AS BillTo,
+                RTRIM(LTRIM(UPPER(wo.BillTo))) AS BillTo,
                 SUM(gld.Amount) AS total_amount
             FROM {schema}.GLDetail gld
-            JOIN {schema}.Invoice inv ON gld.RefNo = inv.InvoiceNo
+            JOIN {schema}.WO wo ON gld.RefNo = wo.WONo
             WHERE gld.EffectiveDate >= %s
               AND gld.EffectiveDate <= %s
               AND gld.Posted = 1
               AND gld.AccountNo IN ('{accounts_list}')
               {cogs_exclusion}
-            GROUP BY gld.AccountNo, RTRIM(LTRIM(UPPER(inv.BillTo)))
+            GROUP BY gld.AccountNo, RTRIM(LTRIM(UPPER(wo.BillTo)))
             """
-            # Fallback: also grab rows that didn't join (no matching invoice — posted direct to GL)
+            # Fallback: also grab GLDetail rows with no matching WO (direct GL postings)
             rev_nojoin_query = f"""
             SELECT
                 gld.AccountNo,
                 NULL AS BillTo,
                 SUM(gld.Amount) AS total_amount
             FROM {schema}.GLDetail gld
-            LEFT JOIN {schema}.Invoice inv ON gld.RefNo = inv.InvoiceNo
+            LEFT JOIN {schema}.WO wo ON gld.RefNo = wo.WONo
             WHERE gld.EffectiveDate >= %s
               AND gld.EffectiveDate <= %s
               AND gld.Posted = 1
               AND gld.AccountNo IN ('{accounts_list}')
-              AND inv.InvoiceNo IS NULL
+              AND wo.WONo IS NULL
               {cogs_exclusion}
             GROUP BY gld.AccountNo
             """
