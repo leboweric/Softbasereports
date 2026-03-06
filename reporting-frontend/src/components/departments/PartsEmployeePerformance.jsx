@@ -105,9 +105,10 @@ const PartsEmployeePerformance = () => {
   const exportToCSV = () => {
     if (!data || !data.employees) return;
 
-    const headers = ['Employee Name', 'Total Invoices', 'Days Worked', 'Total Sales', 'Avg Invoice Value', 'Avg Daily Sales', 'Avg Daily Invoices', '% of Total', 'Last Sale Date', 'Days Since Last Sale'];
+    const headers = ['Employee Name', 'Salesman', 'Total Invoices', 'Days Worked', 'Total Sales', 'Avg Invoice Value', 'Avg Daily Sales', 'Avg Daily Invoices', '% of Total', 'Last Sale Date', 'Days Since Last Sale'];
     const rows = data.employees.map(emp => [
       emp.employeeName || emp.employeeId || 'Unknown',
+      emp.primarySalesman || '',
       emp.totalInvoices,
       emp.daysWorked,
       emp.totalSales.toFixed(2),
@@ -197,6 +198,27 @@ const PartsEmployeePerformance = () => {
                     Avg/Day: ${emp.avgDailySales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </div>
                 </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Salesmen List Card */}
+      {data.salesmen && data.salesmen.length > 0 && (
+        <Card className="border border-blue-200 bg-blue-50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Users className="h-4 w-4 text-blue-600" />
+              Salesmen
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {data.salesmen.map((name, idx) => (
+                <span key={idx} className="px-3 py-1 bg-white border border-blue-200 rounded-full text-sm font-medium text-blue-800">
+                  {name}
+                </span>
               ))}
             </div>
           </CardContent>
@@ -320,6 +342,7 @@ const PartsEmployeePerformance = () => {
                 <tr className="border-b">
                   <th className="text-left p-2">Rank</th>
                   <th className="text-left p-2">Employee</th>
+                  <th className="text-left p-2">Salesman</th>
                   <th className="text-right p-2">Total Sales</th>
                   <th className="text-right p-2">% of Total</th>
                   <th className="text-right p-2">Invoices</th>
@@ -346,6 +369,15 @@ const PartsEmployeePerformance = () => {
                     </td>
                     <td className="p-2 font-medium">
                       <div className="font-semibold">{emp.employeeName || emp.employeeId || 'Unknown'}</div>
+                    </td>
+                    <td className="p-2">
+                      {emp.primarySalesman ? (
+                        <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">
+                          {emp.primarySalesman}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
                     </td>
                     <td className="p-2 text-right font-semibold">
                       ${emp.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -389,7 +421,7 @@ const PartsEmployeePerformance = () => {
                   {/* Invoice Details Row */}
                   {selectedEmployee === emp.employeeId && (
                     <tr>
-                      <td colSpan="11" className="p-0">
+                      <td colSpan="12" className="p-0">
                         <div className="bg-gray-50 p-4 border-t border-b">
                           <div className="flex items-center gap-2 mb-3">
                             <FileText className="h-5 w-5 text-blue-600" />
@@ -418,6 +450,7 @@ const PartsEmployeePerformance = () => {
                                     <th className="text-right p-2">Labor</th>
                                     <th className="text-right p-2">Misc</th>
                                     <th className="text-right p-2">Grand Total</th>
+                                    <th className="text-left p-2">Salesman</th>
                                     <th className="text-center p-2">Sale Code</th>
                                     <th className="text-left p-2">Modified By</th>
                                   </tr>
@@ -441,6 +474,13 @@ const PartsEmployeePerformance = () => {
                                         {inv.totalMisc > 0 ? `$${inv.totalMisc.toFixed(2)}` : '-'}
                                       </td>
                                       <td className="p-2 text-right">${inv.grandTotal.toFixed(2)}</td>
+                                      <td className="p-2">
+                                        {inv.salesman ? (
+                                          <span className="px-1 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">
+                                            {inv.salesman}
+                                          </span>
+                                        ) : '-'}
+                                      </td>
                                       <td className="p-2 text-center">
                                         <span className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
                                           {inv.saleCode || '-'}
@@ -450,7 +490,7 @@ const PartsEmployeePerformance = () => {
                                     </tr>
                                   ))}
                                   <tr className="font-semibold bg-yellow-50">
-                                    <td colSpan="6" className="p-2 text-right">Total:</td>
+                                    <td colSpan="7" className="p-2 text-right">Total:</td>
                                     <td className="p-2 text-right bg-green-100">
                                       ${invoiceDetails[emp.employeeId].reduce((sum, inv) => sum + inv.totalParts, 0).toFixed(2)}
                                     </td>
@@ -463,7 +503,7 @@ const PartsEmployeePerformance = () => {
                                     <td className="p-2 text-right">
                                       ${invoiceDetails[emp.employeeId].reduce((sum, inv) => sum + inv.grandTotal, 0).toFixed(2)}
                                     </td>
-                                    <td colSpan="2"></td>
+                                    <td colSpan="3"></td>
                                   </tr>
                                 </tbody>
                               </table>

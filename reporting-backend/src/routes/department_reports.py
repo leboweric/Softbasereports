@@ -285,7 +285,8 @@ def register_department_routes(reports_bp):
                 COALESCE(p.parts_list, '') as parts_list,
                 COALESCE(p.parts_total, 0) as parts_total,
                 COALESCE(m.misc_total, 0) as misc_total,
-                COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0) as total_value
+                COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0) as total_value,
+                ISNULL(w.Salesman, '') as Salesman
             FROM {schema}.WO w
             LEFT JOIN {schema}.Customer c ON w.BillTo = c.Number
             LEFT JOIN (
@@ -326,7 +327,8 @@ def register_department_routes(reports_bp):
                         'days_open': int(row['DaysSinceOpened']),
                         'parts_total': float(row['parts_total'] or 0),
                         'misc_total': float(row['misc_total'] or 0),
-                        'total_value': float(row['total_value'] or 0)
+                        'total_value': float(row['total_value'] or 0),
+                        'salesman': row.get('Salesman', '') or ''
                     })
             
             # Calculate summary stats
@@ -2359,29 +2361,32 @@ def register_department_routes(reports_bp):
                 employee_filter = ""
             
             # Get invoice details - ONLY CSTPRT sale code
+            # Join with WO table to get Salesman field
             query = f"""
             SELECT 
-                InvoiceNo,
-                InvoiceDate,
-                ISNULL(OpenBy, 'Unknown') as EmployeeName,
-                BillTo,
-                BillToName,
-                ISNULL(PartsTaxable, 0) as PartsTaxable,
-                ISNULL(PartsNonTax, 0) as PartsNonTax,
-                ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0) as TotalParts,
-                ISNULL(LaborTaxable, 0) + ISNULL(LaborNonTax, 0) as TotalLabor,
-                ISNULL(MiscTaxable, 0) + ISNULL(MiscNonTax, 0) as TotalMisc,
-                GrandTotal,
-                SaleCode,
-                ISNULL(ClosedBy, OpenBy) as ClosedBy
-            FROM {schema}.InvoiceReg
-            WHERE (ISNULL(PartsTaxable, 0) > 0 OR ISNULL(PartsNonTax, 0) > 0)
-                AND SaleCode = 'CSTPRT'
-                AND OpenBy IS NOT NULL
-                AND OpenBy != ''
-                AND {date_filter}
-                {employee_filter}
-            ORDER BY InvoiceDate DESC, InvoiceNo DESC
+                i.InvoiceNo,
+                i.InvoiceDate,
+                ISNULL(i.OpenBy, 'Unknown') as EmployeeName,
+                i.BillTo,
+                i.BillToName,
+                ISNULL(i.PartsTaxable, 0) as PartsTaxable,
+                ISNULL(i.PartsNonTax, 0) as PartsNonTax,
+                ISNULL(i.PartsTaxable, 0) + ISNULL(i.PartsNonTax, 0) as TotalParts,
+                ISNULL(i.LaborTaxable, 0) + ISNULL(i.LaborNonTax, 0) as TotalLabor,
+                ISNULL(i.MiscTaxable, 0) + ISNULL(i.MiscNonTax, 0) as TotalMisc,
+                i.GrandTotal,
+                i.SaleCode,
+                ISNULL(i.ClosedBy, i.OpenBy) as ClosedBy,
+                ISNULL(w.Salesman, '') as Salesman
+            FROM {schema}.InvoiceReg i
+            LEFT JOIN {schema}.WO w ON i.InvoiceNo = w.WONo
+            WHERE (ISNULL(i.PartsTaxable, 0) > 0 OR ISNULL(i.PartsNonTax, 0) > 0)
+                AND i.SaleCode = 'CSTPRT'
+                AND i.OpenBy IS NOT NULL
+                AND i.OpenBy != ''
+                AND {date_filter.replace('InvoiceDate', 'i.InvoiceDate')}
+                {employee_filter.replace('OpenBy', 'i.OpenBy')}
+            ORDER BY i.InvoiceDate DESC, i.InvoiceNo DESC
             """
             
             result = db.execute_query(query)
@@ -2403,7 +2408,8 @@ def register_department_routes(reports_bp):
                         'totalMisc': float(row.get('TotalMisc', 0)),
                         'grandTotal': float(row.get('GrandTotal', 0)),
                         'saleCode': row.get('SaleCode', ''),
-                        'lastModifiedBy': row.get('ClosedBy', '')
+                        'lastModifiedBy': row.get('ClosedBy', ''),
+                        'salesman': row.get('Salesman', '') or ''
                     })
             
             return jsonify({
@@ -2493,28 +2499,55 @@ def register_department_routes(reports_bp):
             
             result = db.execute_query(query)
             
-            # First, let's check what columns exist for employee tracking
-            # Looking for CreatedBy, ChangedBy, ClosedBy or similar fields
-            check_columns_query = f"""
-            SELECT COLUMN_NAME 
-            FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_SCHEMA = '{schema}' 
-                AND TABLE_NAME = 'InvoiceReg'
-                AND (COLUMN_NAME LIKE '%Created%' 
-                    OR COLUMN_NAME LIKE '%Changed%' 
-                    OR COLUMN_NAME LIKE '%Closed%'
-                    OR COLUMN_NAME LIKE '%User%'
-                    OR COLUMN_NAME LIKE '%Employee%')
+            # Fetch the list of salesmen from the Salesman table for this tenant
+            salesmen_query = f"""
+            SELECT DISTINCT Name 
+            FROM {schema}.Salesman 
+            WHERE DeletionTime IS NULL 
+                AND Name IS NOT NULL 
+                AND Name != ''
+            ORDER BY Name
             """
-            
             try:
-                columns_result = db.execute_query(check_columns_query)
-                available_columns = [row['COLUMN_NAME'] for row in columns_result] if columns_result else []
-                
-                # Log available columns for debugging
-                print(f"Available employee-related columns: {available_columns}")
-            except:
-                available_columns = []
+                salesmen_result = db.execute_query(salesmen_query)
+                salesmen_list = list(set(row['Name'] for row in salesmen_result)) if salesmen_result else []
+                salesmen_list.sort()
+            except Exception as e:
+                logger.warning(f"Could not fetch salesmen list: {e}")
+                salesmen_list = []
+            
+            # Fetch salesman per employee by joining InvoiceReg with WO
+            salesman_by_employee_query = f"""
+            SELECT 
+                ISNULL(i.OpenBy, 'Unknown') as EmployeeName,
+                ISNULL(w.Salesman, '') as Salesman,
+                COUNT(*) as InvoiceCount
+            FROM {schema}.InvoiceReg i
+            LEFT JOIN {schema}.WO w ON i.InvoiceNo = w.WONo
+            WHERE (ISNULL(i.PartsTaxable, 0) > 0 OR ISNULL(i.PartsNonTax, 0) > 0)
+                AND i.SaleCode = 'CSTPRT'
+                AND i.OpenBy IS NOT NULL
+                AND i.OpenBy != ''
+                AND {date_filter.replace('InvoiceDate', 'i.InvoiceDate')}
+            GROUP BY i.OpenBy, w.Salesman
+            ORDER BY i.OpenBy, COUNT(*) DESC
+            """
+            try:
+                salesman_result = db.execute_query(salesman_by_employee_query)
+                # Build a map: employee -> list of (salesman, count)
+                emp_salesmen_map = {}
+                if salesman_result:
+                    for row in salesman_result:
+                        emp = row.get('EmployeeName', 'Unknown')
+                        sm = row.get('Salesman', '') or ''
+                        cnt = row.get('InvoiceCount', 0)
+                        if emp not in emp_salesmen_map:
+                            emp_salesmen_map[emp] = []
+                        if sm:  # Only add non-empty salesman
+                            emp_salesmen_map[emp].append({'name': sm, 'count': cnt})
+            except Exception as e:
+                logger.warning(f"Could not fetch salesman by employee: {e}")
+                emp_salesmen_map = {}
             
             # Parse results
             employees = []
@@ -2529,6 +2562,10 @@ def register_department_routes(reports_bp):
                     first_name = name_parts[0] if name_parts else ''
                     last_name = name_parts[1] if len(name_parts) > 1 else ''
                     
+                    # Get salesmen associated with this employee's invoices
+                    emp_salesmen = emp_salesmen_map.get(emp_name, [])
+                    primary_salesman = emp_salesmen[0]['name'] if emp_salesmen else ''
+                    
                     employee_data = {
                         'employeeId': emp_name,  # Use name as ID for now
                         'employeeName': emp_name,
@@ -2542,7 +2579,9 @@ def register_department_routes(reports_bp):
                         'avgDailyInvoices': float(row.get('AvgDailyInvoices', 0)),
                         'lastSaleDate': row.get('LastSaleDate').strftime('%Y-%m-%d') if row.get('LastSaleDate') else None,
                         'firstSaleDate': row.get('FirstSaleDate').strftime('%Y-%m-%d') if row.get('FirstSaleDate') else None,
-                        'daysSinceLastSale': row.get('DaysSinceLastSale', 0)
+                        'daysSinceLastSale': row.get('DaysSinceLastSale', 0),
+                        'primarySalesman': primary_salesman,
+                        'salesmen': emp_salesmen
                     }
                     employees.append(employee_data)
                     total_sales += employee_data['totalSales']
@@ -2565,6 +2604,7 @@ def register_department_routes(reports_bp):
             
             return jsonify({
                 'employees': employees,
+                'salesmen': salesmen_list,
                 'summary': {
                     'totalEmployees': len(employees),
                     'totalSales': total_sales,
