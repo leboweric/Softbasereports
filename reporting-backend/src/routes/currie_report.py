@@ -371,7 +371,13 @@ def get_rental_revenue(start_date, end_date):
 
 
 def get_service_revenue(start_date, end_date):
-    """Get service revenue broken down by customer, internal, warranty, sublet using GLDetail"""
+    """Get service revenue broken down by customer, internal, warranty, sublet using GLDetail.
+
+    For tenants where interdepartmental (internal) labor WOs post to the same GL accounts
+    as customer WOs, the config may include 'internal_labor_bill_to_customers' — a list of
+    bill-to customer codes (e.g. IPS110, IPS130) that identify internal WOs. When present,
+    this function runs a bill-to-aware query to correctly split customer vs internal revenue.
+    """
     try:
         schema = get_tenant_schema()
         currie = get_currie_mappings(schema)
@@ -386,6 +392,10 @@ def get_service_revenue(start_date, end_date):
             'other': svc.get('other', {})
         }
 
+        # Check if this tenant uses bill-to customer codes to identify internal labor
+        internal_bill_to_customers = svc.get('internal_labor', {}).get('internal_labor_bill_to_customers', [])
+        use_bill_to_split = len(internal_bill_to_customers) > 0
+
         # Build revenue and cost maps
         revenue_map = {}  # account -> category_key
         cost_map = {}     # account -> category_key
@@ -398,24 +408,18 @@ def get_service_revenue(start_date, end_date):
                 cost_map[acct] = cat_key
                 all_accounts.append(acct)
 
+        # For bill-to split tenants, also include customer_labor revenue accounts in the query
+        # so we can reclassify them based on bill-to customer
+        if use_bill_to_split:
+            cust_labor_rev_accounts = svc.get('customer_labor', {}).get('revenue', [])
+            for acct in cust_labor_rev_accounts:
+                if acct not in all_accounts:
+                    all_accounts.append(acct)
+
         if not all_accounts:
             return {}
         accounts_list = "', '".join(list(set(all_accounts)))
 
-        query = f"""
-        SELECT 
-            AccountNo,
-            SUM(Amount) as total_amount
-        FROM {schema}.GLDetail
-        WHERE EffectiveDate >= %s 
-          AND EffectiveDate <= %s
-          AND Posted = 1
-          AND AccountNo IN ('{accounts_list}')
-        GROUP BY AccountNo
-        """
-        
-        results = get_sql_service().execute_query(query, [start_date, end_date])
-        
         service_data = {
             'customer_labor': {'sales': 0, 'cogs': 0},
             'internal_labor': {'sales': 0, 'cogs': 0},
@@ -423,26 +427,139 @@ def get_service_revenue(start_date, end_date):
             'sublet': {'sales': 0, 'cogs': 0},
             'other': {'sales': 0, 'cogs': 0}
         }
-        
-        for row in results:
-            account = str(row['AccountNo'])
-            amount = float(row['total_amount'] or 0)
-            
-            if account in revenue_map:
-                cat_key = revenue_map[account]
-                service_data[cat_key]['sales'] += -amount  # Revenue is credit (negative)
-            elif account in cost_map:
-                cat_key = cost_map[account]
-                service_data[cat_key]['cogs'] += amount  # COGS is debit (positive)
-        
+
+        if use_bill_to_split:
+            # --- Bill-to-aware query: join GLDetail to Invoice to get BillTo ---
+            # Revenue accounts that could be either customer or internal labor
+            cust_labor_rev_set = set(svc.get('customer_labor', {}).get('revenue', []))
+            internal_bill_to_set = set(b.strip().upper() for b in internal_bill_to_customers)
+            bill_to_list = "', '".join(internal_bill_to_customers)
+
+            # Build a safe exclusion list for COGS accounts (so revenue query doesn't pick them up)
+            cogs_account_keys = list(cost_map.keys())
+            cogs_exclusion = ("AND gld.AccountNo NOT IN ('" + "', '".join(cogs_account_keys) + "')") if cogs_account_keys else ""
+
+            # Query 1: Revenue rows — join to Invoice to get BillTo
+            rev_query = f"""
+            SELECT
+                gld.AccountNo,
+                RTRIM(LTRIM(UPPER(inv.BillTo))) AS BillTo,
+                SUM(gld.Amount) AS total_amount
+            FROM {schema}.GLDetail gld
+            JOIN {schema}.Invoice inv ON gld.RefNo = inv.InvoiceNo
+            WHERE gld.EffectiveDate >= %s
+              AND gld.EffectiveDate <= %s
+              AND gld.Posted = 1
+              AND gld.AccountNo IN ('{accounts_list}')
+              {cogs_exclusion}
+            GROUP BY gld.AccountNo, RTRIM(LTRIM(UPPER(inv.BillTo)))
+            """
+            # Fallback: also grab rows that didn't join (no matching invoice — posted direct to GL)
+            rev_nojoin_query = f"""
+            SELECT
+                gld.AccountNo,
+                NULL AS BillTo,
+                SUM(gld.Amount) AS total_amount
+            FROM {schema}.GLDetail gld
+            LEFT JOIN {schema}.Invoice inv ON gld.RefNo = inv.InvoiceNo
+            WHERE gld.EffectiveDate >= %s
+              AND gld.EffectiveDate <= %s
+              AND gld.Posted = 1
+              AND gld.AccountNo IN ('{accounts_list}')
+              AND inv.InvoiceNo IS NULL
+              {cogs_exclusion}
+            GROUP BY gld.AccountNo
+            """
+            # Query 2: COGS rows — no join needed, account determines category
+            cogs_query = f"""
+            SELECT
+                AccountNo,
+                SUM(Amount) AS total_amount
+            FROM {schema}.GLDetail
+            WHERE EffectiveDate >= %s
+              AND EffectiveDate <= %s
+              AND Posted = 1
+              AND AccountNo IN ('{"', '".join(list(cost_map.keys()))}')
+            GROUP BY AccountNo
+            """
+
+            try:
+                rev_results = get_sql_service().execute_query(rev_query, [start_date, end_date])
+            except Exception as e_rev:
+                logger.warning(f"Bill-to join query failed ({e_rev}), falling back to simple query")
+                rev_results = []
+                use_bill_to_split = False  # fall through to simple query below
+
+            if use_bill_to_split:
+                try:
+                    rev_nojoin_results = get_sql_service().execute_query(rev_nojoin_query, [start_date, end_date])
+                except Exception:
+                    rev_nojoin_results = []
+
+                cogs_results = get_sql_service().execute_query(cogs_query, [start_date, end_date])
+
+                # Process revenue rows
+                for row in (rev_results or []) + (rev_nojoin_results or []):
+                    account = str(row['AccountNo'])
+                    amount = float(row['total_amount'] or 0)
+                    bill_to = (row.get('BillTo') or '').strip().upper()
+
+                    if account in revenue_map:
+                        cat_key = revenue_map[account]
+                    elif account in cust_labor_rev_set:
+                        cat_key = 'customer_labor'
+                    else:
+                        continue
+
+                    # Reclassify to internal_labor if bill-to matches internal customer list
+                    if cat_key == 'customer_labor' and bill_to in internal_bill_to_set:
+                        cat_key = 'internal_labor'
+
+                    service_data[cat_key]['sales'] += -amount  # Revenue is credit (negative)
+
+                # Process COGS rows
+                for row in (cogs_results or []):
+                    account = str(row['AccountNo'])
+                    amount = float(row['total_amount'] or 0)
+                    if account in cost_map:
+                        cat_key = cost_map[account]
+                        service_data[cat_key]['cogs'] += amount
+
+        if not use_bill_to_split:
+            # --- Simple query (no bill-to split needed) ---
+            query = f"""
+            SELECT 
+                AccountNo,
+                SUM(Amount) as total_amount
+            FROM {schema}.GLDetail
+            WHERE EffectiveDate >= %s 
+              AND EffectiveDate <= %s
+              AND Posted = 1
+              AND AccountNo IN ('{accounts_list}')
+            GROUP BY AccountNo
+            """
+            results = get_sql_service().execute_query(query, [start_date, end_date])
+
+            for row in results:
+                account = str(row['AccountNo'])
+                amount = float(row['total_amount'] or 0)
+                if account in revenue_map:
+                    cat_key = revenue_map[account]
+                    service_data[cat_key]['sales'] += -amount
+                elif account in cost_map:
+                    cat_key = cost_map[account]
+                    service_data[cat_key]['cogs'] += amount
+
         # Calculate gross profit
         for category in service_data.values():
             category['gross_profit'] = category['sales'] - category['cogs']
-        
+
         return service_data
-        
+
     except Exception as e:
         logger.error(f"Error fetching service revenue: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {}
 
 

@@ -600,6 +600,11 @@ CURRIE_MAPPINGS_IPS = {
             # These now live in the Parts department P&L per Currie model.
         },
         # Internal labor = nonbillable time + internal labor allocations
+        # NOTE: IPS interdepartmental billing posts to the SAME GL accounts as customer labor
+        # (4151701, 4155701, etc.) — the bill-to customer code (IPS110/130/etc.) is the only
+        # distinguisher. The 43xxxxx accounts below have $0 activity in practice.
+        # The 'internal_labor_bill_to_customers' key tells get_service_revenue() to
+        # reclassify revenue from customer_labor → internal_labor when BillTo matches.
         'internal_labor': {
             'revenue': ['4311701', '4311702',  # Nonbillable Field Time
                         '4320701',  # Internal Labor-AMI Lease Prep
@@ -617,7 +622,24 @@ CURRIE_MAPPINGS_IPS = {
                      '5220701', '5220702',  # CGS Labor Internal Labor
                      '5192701', '5192702',  # Internal Rental to Service
                      '5970701', '5970702',  # P/L Service to Service
-                     '5980701', '5980702']  # Building Maintenance
+                     '5980701', '5980702'],  # Building Maintenance
+            # Bill-to customer codes that indicate interdepartmental (internal) WOs.
+            # Revenue from WOs billed to these customers is reclassified from
+            # customer_labor → internal_labor in the service revenue query.
+            'internal_labor_bill_to_customers': [
+                'IPS110',  # New Equipment Internal
+                'IPS130',  # Used Equipment Internal
+                'IPS140',  # Allied Internal
+                'IPS145',  # Allied Internal (variant)
+                'IPS150',  # Rental Internal
+                'IPS160',  # Parts Internal
+                'IPC110',  # IPS Canton - New Equipment Internal
+                'IPC130',  # IPS Canton - Used Equipment Internal
+                'IPC140',  # IPS Canton - Allied Internal
+                'IPC145',  # IPS Canton - Allied Internal (variant)
+                'IPC150',  # IPS Canton - Rental Internal
+                'IPC160',  # IPS Canton - Parts Internal
+            ]
         },
         # Warranty labor
         'warranty_labor': {
