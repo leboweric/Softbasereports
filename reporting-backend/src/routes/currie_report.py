@@ -1176,12 +1176,16 @@ def get_rental_fleet_metrics(start_date, end_date):
         # Rental Multiple = Revenue / Depreciation
         rental_multiple = (annualized_revenue / annualized_depreciation) if annualized_depreciation > 0 else 0
         
-        # Fleet unit count from Equipment table
+        # Fleet unit count from Equipment table.
+        # Equipment has no 'Status' or 'RentalUnit' columns.
+        # Use RentalStatus to identify active fleet units; exclude sold/disposed/transferred.
+        # DeletionTime IS NULL excludes soft-deleted rows.
         unit_query = f"""
         SELECT COUNT(*) as unit_count
         FROM {schema}.Equipment
-        WHERE Status = 'A'
-          AND RentalUnit = 1
+        WHERE RentalStatus NOT IN ('Sold', 'Disposed', 'Transferred')
+          AND RentalStatus IS NOT NULL
+          AND DeletionTime IS NULL
         """
         
         unit_result = get_sql_service().execute_query(unit_query, [])

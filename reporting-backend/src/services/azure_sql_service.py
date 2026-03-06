@@ -1,6 +1,7 @@
 import pandas as pd
 from typing import List, Dict, Any, Optional
 from ..config.database_config import DatabaseConfig
+from datetime import datetime as _datetime
 import logging
 import re
 
@@ -98,8 +99,20 @@ class AzureSQLService:
             
             if params:
                 if self.driver == 'pymssql':
-                    # pymssql uses %s placeholders
-                    cursor.execute(query, params)
+                    # pymssql uses %s placeholders.
+                    # Convert YYYY-MM-DD date strings to datetime objects so pymssql
+                    # sends them as SQL datetime types rather than nvarchar, preventing
+                    # SQL Server error 242 (implicit nvarchar-to-datetime conversion failure).
+                    converted_params = []
+                    for p in params:
+                        if isinstance(p, str) and len(p) == 10:
+                            try:
+                                converted_params.append(_datetime.strptime(p, '%Y-%m-%d'))
+                            except ValueError:
+                                converted_params.append(p)
+                        else:
+                            converted_params.append(p)
+                    cursor.execute(query, converted_params)
                 else:  # pyodbc
                     # Convert dict params to positional params for pyodbc
                     cursor.execute(query, list(params.values()))

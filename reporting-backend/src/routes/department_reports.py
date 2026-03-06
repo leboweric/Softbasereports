@@ -9810,13 +9810,15 @@ def register_department_routes(reports_bp):
             # (e.g. I1=Internal Service, IF1=Internal Full Maint, VM1=Internal Van Maint)
             # IPS: C1 in Dept 47 (PM Service) = Full Service Maintenance
             # Bennett: FM codes (FMBILL, FMROAD, PM-FM, FMSHOP)
+            # Note: SaleCodes table has no 'Customer' column (only Branch, Dept, Code, Description).
+            # Filter internal codes by excluding those whose description contains 'Internal'
+            # or whose code starts with 'I' (I1, IF1, etc.) or 'VM' (VM1 = Van Maintenance).
             maintenance_salecodes_query = f"""
             SELECT DISTINCT i.SaleCode
             FROM {schema}.InvoiceReg i
             JOIN {schema}.Dept d ON i.SaleDept = d.Dept
             JOIN {schema}.SaleCodes sc ON i.SaleCode = sc.Code AND i.SaleDept = sc.Dept
-            WHERE sc.Customer = 1
-              AND (
+            WHERE (
                 LOWER(d.Title) LIKE '%maintenance%'
                 OR LOWER(d.Title) LIKE '%guaranteed%'
                 OR LOWER(d.Title) LIKE '%pm service%'
@@ -9826,6 +9828,9 @@ def register_department_routes(reports_bp):
                 OR i.SaleCode LIKE 'FM%'
                 OR i.SaleCode LIKE 'PM-FM%'
               )
+              AND LOWER(COALESCE(sc.Description, '')) NOT LIKE '%internal%'
+              AND i.SaleCode NOT LIKE 'I%'
+              AND i.SaleCode NOT LIKE 'VM%'
             """
             try:
                 mc_codes_result = db.execute_query(maintenance_salecodes_query)
