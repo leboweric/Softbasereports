@@ -2248,3 +2248,108 @@ def get_balance_sheet_data(as_of_date):
             'balanced': False,
             'error': str(e)
         }
+
+
+@currie_bp.route('/api/currie/internal-labor-diagnostic', methods=['GET'])
+@jwt_required()
+def internal_labor_diagnostic():
+    """
+    Diagnostic endpoint: shows what GL accounts are actually posting in the
+    internal labor range (43xxxxx revenue, 53xxxxx COGS) vs what's mapped in config.
+    Also queries WO billing to IPS110/130/150/160 customer codes to find where
+    interdepartmental labor charges are actually posting.
+    """
+    try:
+        start_date = request.args.get('start_date', '2025-01-01')
+        end_date = request.args.get('end_date', '2025-12-31')
+        schema = get_tenant_schema()
+        currie = get_currie_mappings(schema)
+        svc = currie.get('service', {})
+        internal_cfg = svc.get('internal_labor', {})
+        mapped_rev = internal_cfg.get('revenue', [])
+        mapped_cogs = internal_cfg.get('cogs', [])
+
+        # 1. What's actually posting in 43xxxxx and 53xxxxx ranges?
+        gl_range_query = f"""
+        SELECT AccountNo, SUM(Amount) as total, COUNT(*) as txns
+        FROM {schema}.GLDetail
+        WHERE EffectiveDate >= %s AND EffectiveDate <= %s
+          AND Posted = 1
+          AND (AccountNo LIKE '43%' OR AccountNo LIKE '53%')
+        GROUP BY AccountNo
+        ORDER BY AccountNo
+        """
+        gl_range_results = get_sql_service().execute_query(gl_range_query, [start_date, end_date])
+
+        # 2. What revenue is posting to WOs billed to IPS110/130/150/160?
+        internal_customers = ['IPS110', 'IPS130', 'IPS150', 'IPS160', 'IPS140', 'IPS145',
+                              'IPC110', 'IPC130', 'IPC140', 'IPC145', 'IPC150', 'IPC160']
+        cust_list = "', '".join(internal_customers)
+        wo_billing_query = f"""
+        SELECT
+            i.BillTo,
+            i.GLAccount,
+            SUM(i.Amount) as total,
+            COUNT(*) as txns
+        FROM {schema}.InvoiceDetail i
+        JOIN {schema}.Invoice inv ON i.InvoiceNo = inv.InvoiceNo
+        WHERE inv.InvoiceDate >= %s AND inv.InvoiceDate <= %s
+          AND RTRIM(inv.BillTo) IN ('{cust_list}')
+        GROUP BY i.BillTo, i.GLAccount
+        ORDER BY i.BillTo, ABS(SUM(i.Amount)) DESC
+        """
+        try:
+            wo_billing_results = get_sql_service().execute_query(wo_billing_query, [start_date, end_date])
+        except Exception as e2:
+            wo_billing_results = [{'error': str(e2)}]
+
+        # 3. What's mapped vs what has activity
+        mapped_with_activity = []
+        mapped_without_activity = []
+        active_accounts = {str(r['AccountNo']): float(r['total'] or 0) for r in gl_range_results}
+
+        for acct in mapped_rev:
+            if acct in active_accounts:
+                mapped_with_activity.append({'account': acct, 'type': 'revenue', 'amount': active_accounts[acct]})
+            else:
+                mapped_without_activity.append({'account': acct, 'type': 'revenue'})
+        for acct in mapped_cogs:
+            if acct in active_accounts:
+                mapped_with_activity.append({'account': acct, 'type': 'cogs', 'amount': active_accounts[acct]})
+            else:
+                mapped_without_activity.append({'account': acct, 'type': 'cogs'})
+
+        return jsonify({
+            'date_range': {'start': start_date, 'end': end_date},
+            'schema': schema,
+            'mapped_revenue_accounts': mapped_rev,
+            'mapped_cogs_accounts': mapped_cogs,
+            'gl_range_activity': [
+                {'account': str(r['AccountNo']), 'total': float(r['total'] or 0), 'txns': int(r['txns'])}
+                for r in gl_range_results
+            ],
+            'mapped_accounts_with_activity': mapped_with_activity,
+            'mapped_accounts_without_activity': mapped_without_activity,
+            'wo_billing_to_internal_customers': [
+                {'bill_to': str(r.get('BillTo','')).strip(), 'gl_account': str(r.get('GLAccount','')), 
+                 'total': float(r.get('total', 0) or 0), 'txns': int(r.get('txns', 0) or 0)}
+                for r in wo_billing_results
+            ] if wo_billing_results and 'error' not in wo_billing_results[0] else wo_billing_results,
+            'summary': {
+                'total_internal_labor_revenue_in_gl': sum(
+                    float(r['total'] or 0) for r in gl_range_results
+                    if str(r['AccountNo']).startswith('43')
+                ),
+                'total_internal_labor_cogs_in_gl': sum(
+                    float(r['total'] or 0) for r in gl_range_results
+                    if str(r['AccountNo']).startswith('53')
+                ),
+                'mapped_accounts_with_activity_count': len(mapped_with_activity),
+                'mapped_accounts_without_activity_count': len(mapped_without_activity),
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error in internal_labor_diagnostic: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
