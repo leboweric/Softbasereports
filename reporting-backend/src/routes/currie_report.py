@@ -429,51 +429,30 @@ def get_service_revenue(start_date, end_date):
         }
 
         if use_bill_to_split:
-            # --- Bill-to-aware query: join GLDetail → WO to get BillTo customer code ---
-            # In Softbase/IPS: GLDetail.RefNo = WO.WONo (the WO number is the GL reference).
-            # WO.BillTo contains the customer code (e.g. IPS110, IPS130) that identifies
-            # interdepartmental WOs. InvoiceReg.InvoiceNo also = WO.WONo but InvoiceReg
-            # only has BillToName (text), not the customer code.
-            cust_labor_rev_set = set(svc.get('customer_labor', {}).get('revenue', []))
+            # --- Bill-to-aware query using InvoiceReg ---
+            # GLDetail has no link column to WO in the IPS schema, so we cannot join
+            # GLDetail → WO to get BillTo. Instead, we query InvoiceReg directly:
+            #   InvoiceReg.BillTo  = customer code (IPS110, IPS130, etc.)
+            #   InvoiceReg.LaborTaxable + LaborNonTax = labor revenue
+            #   InvoiceReg.InvoiceDate = invoice date
+            # This gives us accurate labor revenue split by bill-to customer.
+            # COGS still comes from GLDetail (account-based, no join needed).
             internal_bill_to_set = set(b.strip().upper() for b in internal_bill_to_customers)
             bill_to_list = "', '".join(internal_bill_to_customers)
 
-            # Build a safe exclusion list for COGS accounts (so revenue query doesn't pick them up)
-            cogs_account_keys = list(cost_map.keys())
-            cogs_exclusion = ("AND gld.AccountNo NOT IN ('" + "', '".join(cogs_account_keys) + "')") if cogs_account_keys else ""
-
-            # Query 1: Revenue rows — join GLDetail → WO on RefNo = WONo to get BillTo
+            # Query 1: Labor revenue from InvoiceReg, grouped by BillTo
             rev_query = f"""
             SELECT
-                gld.AccountNo,
-                RTRIM(LTRIM(UPPER(wo.BillTo))) AS BillTo,
-                SUM(gld.Amount) AS total_amount
-            FROM {schema}.GLDetail gld
-            JOIN {schema}.WO wo ON gld.RefNo = wo.WONo
-            WHERE gld.EffectiveDate >= %s
-              AND gld.EffectiveDate <= %s
-              AND gld.Posted = 1
-              AND gld.AccountNo IN ('{accounts_list}')
-              {cogs_exclusion}
-            GROUP BY gld.AccountNo, RTRIM(LTRIM(UPPER(wo.BillTo)))
+                RTRIM(LTRIM(UPPER(ISNULL(ir.BillTo, '')))) AS BillTo,
+                SUM(ISNULL(ir.LaborTaxable, 0) + ISNULL(ir.LaborNonTax, 0)) AS total_labor_revenue
+            FROM {schema}.InvoiceReg ir
+            WHERE ir.InvoiceDate >= %s
+              AND ir.InvoiceDate <= %s
+              AND (ISNULL(ir.LaborTaxable, 0) + ISNULL(ir.LaborNonTax, 0)) <> 0
+            GROUP BY RTRIM(LTRIM(UPPER(ISNULL(ir.BillTo, ''))))
             """
-            # Fallback: also grab GLDetail rows with no matching WO (direct GL postings)
-            rev_nojoin_query = f"""
-            SELECT
-                gld.AccountNo,
-                NULL AS BillTo,
-                SUM(gld.Amount) AS total_amount
-            FROM {schema}.GLDetail gld
-            LEFT JOIN {schema}.WO wo ON gld.RefNo = wo.WONo
-            WHERE gld.EffectiveDate >= %s
-              AND gld.EffectiveDate <= %s
-              AND gld.Posted = 1
-              AND gld.AccountNo IN ('{accounts_list}')
-              AND wo.WONo IS NULL
-              {cogs_exclusion}
-            GROUP BY gld.AccountNo
-            """
-            # Query 2: COGS rows — no join needed, account determines category
+
+            # Query 2: COGS rows — from GLDetail by account number
             cogs_query = f"""
             SELECT
                 AccountNo,
@@ -482,43 +461,29 @@ def get_service_revenue(start_date, end_date):
             WHERE EffectiveDate >= %s
               AND EffectiveDate <= %s
               AND Posted = 1
-              AND AccountNo IN ('{"', '".join(list(cost_map.keys()))}')
+              AND AccountNo IN ('{", '".join(list(cost_map.keys()))}')
             GROUP BY AccountNo
             """
 
             try:
                 rev_results = get_sql_service().execute_query(rev_query, [start_date, end_date])
             except Exception as e_rev:
-                logger.warning(f"Bill-to join query failed ({e_rev}), falling back to simple query")
+                logger.warning(f"InvoiceReg bill-to query failed ({e_rev}), falling back to simple query")
                 rev_results = []
                 use_bill_to_split = False  # fall through to simple query below
 
             if use_bill_to_split:
-                try:
-                    rev_nojoin_results = get_sql_service().execute_query(rev_nojoin_query, [start_date, end_date])
-                except Exception:
-                    rev_nojoin_results = []
-
                 cogs_results = get_sql_service().execute_query(cogs_query, [start_date, end_date])
 
-                # Process revenue rows
-                for row in (rev_results or []) + (rev_nojoin_results or []):
-                    account = str(row['AccountNo'])
-                    amount = float(row['total_amount'] or 0)
+                # Process revenue rows — split by BillTo into customer vs internal
+                for row in (rev_results or []):
+                    amount = float(row.get('total_labor_revenue') or 0)
                     bill_to = (row.get('BillTo') or '').strip().upper()
 
-                    if account in revenue_map:
-                        cat_key = revenue_map[account]
-                    elif account in cust_labor_rev_set:
-                        cat_key = 'customer_labor'
+                    if bill_to in internal_bill_to_set:
+                        service_data['internal_labor']['sales'] += amount
                     else:
-                        continue
-
-                    # Reclassify to internal_labor if bill-to matches internal customer list
-                    if cat_key == 'customer_labor' and bill_to in internal_bill_to_set:
-                        cat_key = 'internal_labor'
-
-                    service_data[cat_key]['sales'] += -amount  # Revenue is credit (negative)
+                        service_data['customer_labor']['sales'] += amount
 
                 # Process COGS rows
                 for row in (cogs_results or []):

@@ -1,6 +1,6 @@
 """
 Softbase Reports Backend API
-Version: 1.0.7 - Internal labor revenue fix: split by bill-to customer code (IPS110/130/140/145/150/160)
+Version: 1.0.8 - Internal labor revenue fix: split by bill-to customer code (IPS110/130/140/145/150/160)
 """
 import os
 import sys
@@ -633,7 +633,7 @@ def health_check():
         'status': 'healthy',
         'message': 'Softbase Reports API is running',
         'timestamp': datetime.utcnow().isoformat(),
-        'version': '1.0.7',
+        'version': '1.0.8',
         'features': ['quote-exclusion-9pct', 'type-e-wos-excluded', 'bennett-900xxx-excluded', 'internal-accounts-fix', 'internal-labor-bill-to-split']
     }), 200
 
