@@ -307,7 +307,7 @@ def register_department_routes(reports_bp):
             WHERE w.ClosedDate IS NULL
               AND w.DeletionTime IS NULL
               AND w.Type = 'P'
-              AND w.WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
+              AND w.WONo NOT LIKE '9%'  -- Exclude quotes (WO# starting with 9)
             ORDER BY w.OpenDate ASC
             """
             
@@ -394,7 +394,7 @@ def register_department_routes(reports_bp):
             WHERE w.Type = 'P' 
             AND w.ClosedDate IS NULL
             AND w.DeletionTime IS NULL
-            AND w.WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
+            AND w.WONo NOT LIKE '9%'  -- Exclude quotes (WO# starting with 9)
             """
             
             count_result = db.execute_query(count_query)
@@ -424,7 +424,7 @@ def register_department_routes(reports_bp):
                 END as Status
             FROM {schema}.WO
             WHERE Type = 'P' AND DeletionTime IS NULL
-            AND WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
+            AND WONo NOT LIKE '9%'  -- Exclude quotes (WO# starting with 9)
             ORDER BY WONo DESC
             """
             
@@ -487,7 +487,7 @@ def register_department_routes(reports_bp):
               AND w.InvoiceDate IS NULL
               AND w.DeletionTime IS NULL
               AND w.Type = 'P'
-              AND w.WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
+              AND w.WONo NOT LIKE '9%'  -- Exclude quotes (WO# starting with 9)
             ORDER BY w.CompletedDate ASC
             """
             
@@ -10943,7 +10943,7 @@ def register_department_routes(reports_bp):
                     0
                 ) as misc_cost
             FROM {schema}.WO wo
-            WHERE wo.ShipTo = '{customer_number}'
+            WHERE (wo.ShipTo = '{customer_number}' OR wo.BillTo = '{customer_number}')
                 {wo_date_filter}
                 {wo_type_filter}
                 AND wo.DeletionTime IS NULL
