@@ -75,8 +75,22 @@ def create_user():
         if User.query.filter_by(email=data['email']).first():
             return jsonify({'error': 'User with this email already exists'}), 400
         
-        # Always use current user's organization - true multi-tenant isolation
-        org_id = current_user.organization_id
+        # Super Admins can create users in any organization by specifying org_id
+        # Regular admins always use their own organization (multi-tenant isolation)
+        from src.models.rbac import Role as RoleModel
+        from src.services.permission_service import PermissionService
+        is_super_admin = PermissionService.is_super_admin(current_user)
+        
+        if is_super_admin and data.get('organization_id'):
+            org_id = int(data['organization_id'])
+            # Validate the target organization exists
+            from src.models.user import Organization
+            target_org = Organization.query.get(org_id)
+            if not target_org:
+                return jsonify({'error': f'Organization {org_id} not found'}), 400
+        else:
+            # Always use current user's organization - true multi-tenant isolation
+            org_id = current_user.organization_id
         
         # Create user
         user = User(
