@@ -12342,7 +12342,7 @@ def register_department_routes(reports_bp):
                     wl.WONo,
                     SUM(ISNULL(wl.Cost, 0))   AS LaborCost,
                     SUM(ISNULL(wl.Hours, 0))  AS TotalHours,
-                    MAX(wl.TechNo)            AS PrimaryTech
+                    MAX(wl.MechanicName)      AS PrimaryTech
                 FROM {schema}.WOLabor wl
                 WHERE wl.WONo IN (SELECT WONo FROM ServiceInvoices)
                 GROUP BY wl.WONo
