@@ -453,6 +453,7 @@ def get_service_revenue(start_date, end_date):
             """
 
             # Query 2: COGS rows — from GLDetail by account number
+            cogs_acct_list = "', '".join(list(cost_map.keys()))
             cogs_query = f"""
             SELECT
                 AccountNo,
@@ -461,7 +462,7 @@ def get_service_revenue(start_date, end_date):
             WHERE EffectiveDate >= %s
               AND EffectiveDate <= %s
               AND Posted = 1
-              AND AccountNo IN ('{", '".join(list(cost_map.keys()))}')
+              AND AccountNo IN ('{cogs_acct_list}')
             GROUP BY AccountNo
             """
 
