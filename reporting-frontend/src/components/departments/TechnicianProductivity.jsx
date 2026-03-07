@@ -13,24 +13,47 @@ const CURRIE_APPLICATION  = 85   // Applied Hours / Hours Paid ≥ 85%
 const CURRIE_EFFICIENCY   = 100  // Hours Billed  / Applied Hours ≥ 100%
 const CURRIE_PRODUCTIVITY = 85   // Hours Billed  / Hours Paid ≥ 85%
 
+// ─── Three-zone tolerance band (5% below target = amber, >5% below = red) ────
+const AMBER_TOLERANCE = 5  // percentage points
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt1 = (n) => (n == null ? '—' : n.toFixed(1))
 const fmtPct = (n) => (n == null ? '—' : `${n.toFixed(1)}%`)
 const fmtCurrency = (n) => (n == null ? '—' : `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`)
 
+/**
+ * Returns 'green' | 'amber' | 'red' based on three-zone logic:
+ *   green  = value >= target
+ *   amber  = value >= (target - AMBER_TOLERANCE)   [within 5% of target]
+ *   red    = value <  (target - AMBER_TOLERANCE)   [more than 5% below target]
+ */
+function getZone(value, target) {
+  if (value == null) return 'gray'
+  if (value >= target) return 'green'
+  if (value >= target - AMBER_TOLERANCE) return 'amber'
+  return 'red'
+}
+
+const ZONE_TEXT  = { green: 'text-green-700',  amber: 'text-amber-600',  red: 'text-red-600',  gray: 'text-muted-foreground' }
+const ZONE_BG    = { green: 'bg-green-50',      amber: 'bg-amber-50',     red: 'bg-red-50',     gray: '' }
+const ZONE_BADGE = { green: 'bg-green-100 text-green-700', amber: 'bg-amber-100 text-amber-700', red: 'bg-red-100 text-red-600', gray: 'bg-gray-100 text-gray-500' }
+const ZONE_BAR   = { green: 'bg-green-500',     amber: 'bg-amber-400',    red: 'bg-red-500',    gray: 'bg-gray-300' }
+const ZONE_BORDER= { green: 'border-green-300', amber: 'border-amber-300',red: 'border-red-300', gray: 'border-gray-200' }
+const ZONE_CARD  = { green: 'bg-green-50',      amber: 'bg-amber-50',     red: 'bg-red-50',     gray: 'bg-gray-50' }
+
 function MetricBadge({ value, target, label }) {
   if (value == null) return <span className="text-muted-foreground text-sm">—</span>
-  const ok = value >= target
+  const zone = getZone(value, target)
   const diff = value - target
-  const Icon = ok ? TrendingUp : TrendingDown
+  const Icon = zone === 'green' ? TrendingUp : (zone === 'amber' ? Minus : TrendingDown)
   return (
-    <div className={`flex flex-col items-center gap-0.5 ${ok ? 'text-green-700' : 'text-red-600'}`}>
+    <div className={`flex flex-col items-center gap-0.5 ${ZONE_TEXT[zone]}`}>
       <div className="flex items-center gap-1">
         <Icon className="h-4 w-4" />
         <span className="text-2xl font-bold">{fmtPct(value)}</span>
       </div>
       <span className="text-xs font-medium">{label}</span>
-      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${ZONE_BADGE[zone]}`}>
         Target {fmtPct(target)} {diff >= 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`}
       </span>
     </div>
@@ -39,9 +62,9 @@ function MetricBadge({ value, target, label }) {
 
 function StatusCell({ value, target }) {
   if (value == null) return <td className="px-3 py-2 text-center text-muted-foreground text-sm">—</td>
-  const ok = value >= target
+  const zone = getZone(value, target)
   return (
-    <td className={`px-3 py-2 text-center font-semibold text-sm ${ok ? 'text-green-700 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+    <td className={`px-3 py-2 text-center font-semibold text-sm ${ZONE_TEXT[zone]} ${ZONE_BG[zone]}`}>
       {fmtPct(value)}
     </td>
   )
@@ -153,18 +176,23 @@ const TechnicianProductivity = ({ user }) => {
           },
           {
             label: 'Applied Hours Source',
-            formula: 'SUM(WOLabor.Hours) WHERE WO.Dept IN (service depts) AND WO.ClosedDate IN period',
-            detail: 'Applied Hours are pulled from the WOLabor table, filtered to work orders in service departments (same dynamic Dept table lookup used by all other service reports). The date filter uses WO.ClosedDate — the date the work order was invoiced and closed. If ClosedDate is null, WO.CompletedDate is used as a fallback. This means hours on open or completed-but-not-invoiced WOs are NOT counted until the WO is closed.'
+            formula: 'SUM(WOLabor.Hours) WHERE WO.SaleDept IN (service depts) AND WO.ClosedDate IN period',
+            detail: 'Applied Hours are pulled from the WOLabor table, filtered to work orders in service departments (same dynamic Dept table lookup used by all other service reports). The date filter uses WO.ClosedDate — the date the work order was invoiced and closed. Hours on open or completed-but-not-invoiced WOs are NOT counted until the WO is closed.'
           },
           {
             label: 'Billed Hours Source',
             formula: 'SUM(WOLabor.Hours WHERE WOLabor.Sell > 0) — hours with a positive sell amount',
-            detail: 'Billed Hours are the subset of Applied Hours where the labor line has a positive Sell value in WOLabor. This is a proxy for "billable hours" — it captures lines where the customer was charged. It does not capture flat-rate billing (WOQuote lines) because those are stored separately. If your shop uses flat-rate billing heavily, Efficiency may appear understated. A future enhancement will incorporate WOQuote hours.'
+            detail: 'Billed Hours are the subset of Applied Hours where the labor line has a positive Sell value in WOLabor. This is a proxy for "billable hours" — it captures lines where the customer was charged. It does not capture flat-rate billing (WOQuote lines) because those are stored separately. If your shop uses flat-rate billing heavily, Efficiency may appear understated.'
           },
           {
             label: 'Work Order Scope',
-            formula: 'WO.Dept IN (service dept codes from Dept table) | WO.DeletionTime IS NULL',
+            formula: 'WO.SaleDept IN (service dept codes from Dept table) | WO.DeletionTime IS NULL',
             detail: 'Only work orders from service departments are included. Department codes are resolved dynamically from the Dept table — the same lookup used by the Service Sold by Customer and Customer Billing reports. Deleted work orders are excluded. Internal WOs (e.g., shop maintenance) are included in Applied Hours but their labor lines typically have Sell = 0, so they reduce Efficiency — which is the correct behavior.'
+          },
+          {
+            label: 'Color Bands',
+            formula: 'Green ≥ target | Amber within 5% below target | Red > 5% below target',
+            detail: 'A three-zone traffic light system is used rather than a hard pass/fail. Green means at or above the Currie target. Amber means within 5 percentage points below target — a watch condition that warrants attention but is not an emergency (e.g., 99.8% Efficiency vs. 100% target shows amber, not red). Red means more than 5 percentage points below target and requires action. This prevents minor rounding differences from triggering false alarms.'
           },
           {
             label: 'Performance Review Warning',
@@ -180,55 +208,70 @@ const TechnicianProductivity = ({ user }) => {
           <h3 className="text-base font-semibold">Department Summary</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Application */}
-            <Card className={`border-2 ${dept.applicationOk ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
-              <CardContent className="pt-5 pb-4 flex flex-col items-center gap-2">
-                <MetricBadge value={dept.application} target={CURRIE_APPLICATION} label="Application" />
-                <div className="mt-2 text-xs text-center text-muted-foreground space-y-0.5">
-                  <div>Applied: <span className="font-medium">{fmt1(dept.appliedHours)} hrs</span></div>
-                  <div>Paid: <span className="font-medium">{fmt1(dept.hoursPaid)} hrs</span></div>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                  <div
-                    className={`h-2 rounded-full ${dept.applicationOk ? 'bg-green-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min(dept.application || 0, 100)}%` }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            {(() => {
+              const zone = getZone(dept.application, CURRIE_APPLICATION)
+              return (
+                <Card className={`border-2 ${ZONE_BORDER[zone]} ${ZONE_CARD[zone]}`}>
+                  <CardContent className="pt-5 pb-4 flex flex-col items-center gap-2">
+                    <MetricBadge value={dept.application} target={CURRIE_APPLICATION} label="Application" />
+                    <div className="mt-2 text-xs text-center text-muted-foreground space-y-0.5">
+                      <div>Applied: <span className="font-medium">{fmt1(dept.appliedHours)} hrs</span></div>
+                      <div>Paid: <span className="font-medium">{fmt1(dept.hoursPaid)} hrs</span></div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                      <div
+                        className={`h-2 rounded-full ${ZONE_BAR[zone]}`}
+                        style={{ width: `${Math.min(dept.application || 0, 100)}%` }}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })()}
 
             {/* Efficiency */}
-            <Card className={`border-2 ${dept.efficiencyOk ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
-              <CardContent className="pt-5 pb-4 flex flex-col items-center gap-2">
-                <MetricBadge value={dept.efficiency} target={CURRIE_EFFICIENCY} label="Efficiency" />
-                <div className="mt-2 text-xs text-center text-muted-foreground space-y-0.5">
-                  <div>Billed: <span className="font-medium">{fmt1(dept.billedHours)} hrs</span></div>
-                  <div>Unbilled: <span className="font-medium">{fmt1(dept.unbilledHours)} hrs</span></div>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                  <div
-                    className={`h-2 rounded-full ${dept.efficiencyOk ? 'bg-green-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min(dept.efficiency || 0, 100)}%` }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            {(() => {
+              const zone = getZone(dept.efficiency, CURRIE_EFFICIENCY)
+              return (
+                <Card className={`border-2 ${ZONE_BORDER[zone]} ${ZONE_CARD[zone]}`}>
+                  <CardContent className="pt-5 pb-4 flex flex-col items-center gap-2">
+                    <MetricBadge value={dept.efficiency} target={CURRIE_EFFICIENCY} label="Efficiency" />
+                    <div className="mt-2 text-xs text-center text-muted-foreground space-y-0.5">
+                      <div>Billed: <span className="font-medium">{fmt1(dept.billedHours)} hrs</span></div>
+                      <div>Unbilled: <span className="font-medium">{fmt1(dept.unbilledHours)} hrs</span></div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                      <div
+                        className={`h-2 rounded-full ${ZONE_BAR[zone]}`}
+                        style={{ width: `${Math.min(dept.efficiency || 0, 100)}%` }}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })()}
 
             {/* Productivity */}
-            <Card className={`border-2 ${dept.productivityOk ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
-              <CardContent className="pt-5 pb-4 flex flex-col items-center gap-2">
-                <MetricBadge value={dept.productivity} target={CURRIE_PRODUCTIVITY} label="Productivity" />
-                <div className="mt-2 text-xs text-center text-muted-foreground space-y-0.5">
-                  <div>Billed: <span className="font-medium">{fmt1(dept.billedHours)} hrs</span></div>
-                  <div>Paid: <span className="font-medium">{fmt1(dept.hoursPaid)} hrs</span></div>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                  <div
-                    className={`h-2 rounded-full ${dept.productivityOk ? 'bg-green-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min(dept.productivity || 0, 100)}%` }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            {(() => {
+              const zone = getZone(dept.productivity, CURRIE_PRODUCTIVITY)
+              return (
+                <Card className={`border-2 ${ZONE_BORDER[zone]} ${ZONE_CARD[zone]}`}>
+                  <CardContent className="pt-5 pb-4 flex flex-col items-center gap-2">
+                    <MetricBadge value={dept.productivity} target={CURRIE_PRODUCTIVITY} label="Productivity" />
+                    <div className="mt-2 text-xs text-center text-muted-foreground space-y-0.5">
+                      <div>Billed: <span className="font-medium">{fmt1(dept.billedHours)} hrs</span></div>
+                      <div>Paid: <span className="font-medium">{fmt1(dept.hoursPaid)} hrs</span></div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                      <div
+                        className={`h-2 rounded-full ${ZONE_BAR[zone]}`}
+                        style={{ width: `${Math.min(dept.productivity || 0, 100)}%` }}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })()}
           </div>
 
           {/* Period info */}
@@ -305,18 +348,19 @@ const TechnicianProductivity = ({ user }) => {
                             <div>
                               <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Currie Metrics</div>
                               <div className="space-y-0.5">
-                                <div className={tech.applicationOk ? 'text-green-700' : 'text-red-600'}>
-                                  Application: <span className="font-semibold">{fmtPct(tech.application)}</span>
-                                  <span className="text-xs ml-1">(target {CURRIE_APPLICATION}%)</span>
-                                </div>
-                                <div className={tech.efficiencyOk ? 'text-green-700' : 'text-red-600'}>
-                                  Efficiency: <span className="font-semibold">{fmtPct(tech.efficiency)}</span>
-                                  <span className="text-xs ml-1">(target {CURRIE_EFFICIENCY}%)</span>
-                                </div>
-                                <div className={tech.productivityOk ? 'text-green-700' : 'text-red-600'}>
-                                  Productivity: <span className="font-semibold">{fmtPct(tech.productivity)}</span>
-                                  <span className="text-xs ml-1">(target {CURRIE_PRODUCTIVITY}%)</span>
-                                </div>
+                                {[
+                                  { label: 'Application', value: tech.application, target: CURRIE_APPLICATION },
+                                  { label: 'Efficiency',  value: tech.efficiency,  target: CURRIE_EFFICIENCY },
+                                  { label: 'Productivity',value: tech.productivity,target: CURRIE_PRODUCTIVITY },
+                                ].map(({ label, value, target }) => {
+                                  const zone = getZone(value, target)
+                                  return (
+                                    <div key={label} className={ZONE_TEXT[zone]}>
+                                      {label}: <span className="font-semibold">{fmtPct(value)}</span>
+                                      <span className="text-xs ml-1">(target {target}%)</span>
+                                    </div>
+                                  )
+                                })}
                               </div>
                             </div>
                             <div>
@@ -369,8 +413,9 @@ const TechnicianProductivity = ({ user }) => {
           {/* Legend */}
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-green-100 border border-green-300" /> At or above Currie target</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-red-100 border border-red-300" /> Below Currie target</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-amber-100 border border-amber-300" /> Unbilled hours (Sell = 0 — warranty, goodwill, internal)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-amber-100 border border-amber-300" /> Within 5% of target (watch)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-red-100 border border-red-300" /> More than 5% below target (action required)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-amber-50 border border-amber-200" /> Unbilled hours (Sell = 0 — warranty, goodwill, internal)</span>
             <span>Click any row to expand detail.</span>
           </div>
         </div>
