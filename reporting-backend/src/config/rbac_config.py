@@ -14,6 +14,7 @@ RESOURCES = {
     'parts_employee_performance': 'Parts employee performance',
     'parts_velocity': 'Parts velocity metrics',
     'parts_inventory_turns': 'Parts inventory turns analysis (5-turn matrix)',
+    'parts_sold_by_customer': 'Parts sold by customer with GP analysis',
     'service_work_orders': 'Service work orders',
     'service_overview': 'Service department overview',
     'rental_availability': 'Rental availability report',
@@ -75,7 +76,7 @@ ROLE_PERMISSIONS = {
             'dashboard',
             'parts_work_orders', 'parts_inventory', 'parts_stock_alerts',
             'parts_forecast', 'parts_overview', 'parts_employee_performance',
-            'parts_velocity', 'parts_inventory_turns',
+            'parts_velocity', 'parts_inventory_turns', 'parts_sold_by_customer',
             'service_work_orders', 'service_overview',
             'rental_availability', 'rental_overview',
             'accounting_overview', 'accounting_ar', 'accounting_ap',
@@ -110,14 +111,14 @@ ROLE_PERMISSIONS = {
         'resources': [
             'parts_work_orders', 'parts_inventory', 'parts_stock_alerts',
             'parts_forecast', 'parts_overview', 'parts_employee_performance',
-            'parts_velocity', 'parts_inventory_turns'
+            'parts_velocity', 'parts_inventory_turns', 'parts_sold_by_customer'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
     'Parts User': {
         'resources': [
             'parts_work_orders', 'parts_inventory',
-            'parts_stock_alerts', 'parts_forecast', 'parts_inventory_turns', 'minitrac'
+            'parts_stock_alerts', 'parts_forecast', 'parts_inventory_turns', 'parts_sold_by_customer', 'minitrac'
         ],
         'actions': ['view', 'export'],
     },
@@ -252,6 +253,7 @@ NAVIGATION_CONFIG = {
             'employee-performance': {'label': 'Parts Contest', 'resource': 'parts_employee_performance'},
             'velocity': {'label': 'Velocity', 'resource': 'parts_velocity'},
             'inventory-turns': {'label': 'Inventory Turns', 'resource': 'parts_inventory_turns'},
+            'sold-by-customer': {'label': 'Parts Sold by Customer', 'resource': 'parts_sold_by_customer'},
         }
     },
     'service': {

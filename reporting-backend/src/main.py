@@ -633,7 +633,7 @@ def health_check():
         'status': 'healthy',
         'message': 'Softbase Reports API is running',
         'timestamp': datetime.utcnow().isoformat(),
-        'version': '1.0.9',
+        'version': '1.1.0',
         'features': ['quote-exclusion-9pct', 'type-e-wos-excluded', 'bennett-900xxx-excluded', 'internal-accounts-fix', 'internal-labor-bill-to-split']
     }), 200
 

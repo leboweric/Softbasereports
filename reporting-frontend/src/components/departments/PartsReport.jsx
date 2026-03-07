@@ -44,6 +44,7 @@ import {
 import PartsEmployeePerformance from './PartsEmployeePerformance'
 import PartsInventoryByLocation from './PartsInventoryByLocation'
 import PartsInventoryTurns from './PartsInventoryTurns'
+import PartsSoldByCustomer from './PartsSoldByCustomer'
 import RevenueChart from './RevenueChart'
 import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsContext'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
@@ -114,7 +115,7 @@ const PartsReport = ({ user, organization, onNavigate }) => {
   const accessibleTabs = getAccessibleTabs(user, 'parts')
   
   // Build tabs array from config with desired order
-  const tabOrder = ['overview', 'work-orders', 'inventory-location', 'stock-alerts', 'forecast', 'employee-performance', 'velocity', 'inventory-turns']
+  const tabOrder = ['overview', 'work-orders', 'inventory-location', 'stock-alerts', 'forecast', 'employee-performance', 'velocity', 'inventory-turns', 'sold-by-customer']
   const tabs = tabOrder
     .filter(id => accessibleTabs[id]) // Only include tabs user has access to
     .map(id => ({
@@ -1683,6 +1684,11 @@ const PartsReport = ({ user, organization, onNavigate }) => {
         {tabs.some(tab => tab.value === 'inventory-turns') && (
         <TabsContent value="inventory-turns" className="space-y-6">
           <PartsInventoryTurns user={user} />
+        </TabsContent>
+        )}
+        {tabs.some(tab => tab.value === 'sold-by-customer') && (
+        <TabsContent value="sold-by-customer" className="space-y-6">
+          <PartsSoldByCustomer user={user} />
         </TabsContent>
         )}
       </Tabs>

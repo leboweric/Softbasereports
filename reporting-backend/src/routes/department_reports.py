@@ -12014,3 +12014,181 @@ def register_department_routes(reports_bp):
         except Exception as e:
             logger.error(f"Error getting invoiced sales details: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
+
+    @reports_bp.route('/departments/parts/sold-by-customer', methods=['GET'])
+    @require_permission('view_parts')
+    def get_parts_sold_by_customer():
+        """Get parts sold by customer report with GP$ and GP%, matching Softbase 'Parts Sold by Customer w/Cost' report.
+        
+        Supports both IPS (ind004) and Bennett (ben002) tenants.
+        IPS: filters by SaleDept=50 AND SaleCode IN ('C1','C2') on InvoiceReg, joins WOParts for line items.
+        Bennett: no SaleCode filter, all invoices with parts revenue.
+        """
+        try:
+            db = get_db()
+            schema = get_tenant_schema()
+
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            customer_filter = request.args.get('customer', '')  # optional: filter to one customer
+
+            # Build date filter
+            if start_date and end_date:
+                date_filter = f"ir.InvoiceDate BETWEEN '{start_date}' AND '{end_date}'"
+            else:
+                date_filter = "ir.InvoiceDate >= DATEADD(day, -30, GETDATE())"
+
+            # Optional customer filter
+            if customer_filter:
+                safe_cust = customer_filter.replace("'", "''")
+                cust_where = f"AND (ir.BillTo = '{safe_cust}' OR ir.BillToName LIKE '%{safe_cust}%')"
+            else:
+                cust_where = ""
+
+            if schema == 'ind004':
+                # IPS: SaleDept=50, SaleCode IN ('C1','C2'), line items from WOParts
+                query = f"""
+                SELECT
+                    ir.BillTo                                        AS CustomerNo,
+                    ir.BillToName                                    AS CustomerName,
+                    ir.InvoiceNo                                     AS InvoiceNo,
+                    ir.InvoiceDate                                   AS InvoiceDate,
+                    wp.WONo                                          AS WONo,
+                    wp.PartNo                                        AS PartNo,
+                    wp.Description                                   AS Description,
+                    ISNULL(wp.Qty, 0)                                AS Qty,
+                    ISNULL(wp.Cost, 0)                               AS CostEa,
+                    ISNULL(wp.Sell, 0)                               AS SellEa,
+                    ISNULL(wp.Cost, 0) * ISNULL(wp.Qty, 0)          AS CostTotal,
+                    ISNULL(wp.Sell, 0) * ISNULL(wp.Qty, 0)          AS SellTotal,
+                    (ISNULL(wp.Sell, 0) - ISNULL(wp.Cost, 0)) * ISNULL(wp.Qty, 0) AS GP,
+                    CASE
+                        WHEN ISNULL(wp.Sell, 0) * ISNULL(wp.Qty, 0) = 0 THEN NULL
+                        ELSE ROUND(
+                            ((ISNULL(wp.Sell, 0) - ISNULL(wp.Cost, 0)) * ISNULL(wp.Qty, 0))
+                            / (ISNULL(wp.Sell, 0) * ISNULL(wp.Qty, 0)) * 100, 1)
+                    END AS GPPct
+                FROM {schema}.InvoiceReg ir
+                INNER JOIN {schema}.WOParts wp ON ir.InvoiceNo = wp.WONo
+                WHERE {date_filter}
+                    AND ir.SaleDept = 50
+                    AND ir.SaleCode IN ('C1', 'C2')
+                    AND ISNULL(wp.Qty, 0) != 0
+                    {cust_where}
+                ORDER BY ir.BillToName, ir.InvoiceDate, ir.InvoiceNo, wp.PartNo
+                """
+            else:
+                # Bennett: no SaleCode filter, all invoices with parts revenue
+                from src.config.column_mappings import get_column
+                cust_no_col = get_column(schema, 'Customer', 'cust_no') or 'Number'
+                cust_name_col = get_column(schema, 'Customer', 'name') or 'Name'
+                query = f"""
+                SELECT
+                    ir.BillTo                                        AS CustomerNo,
+                    ISNULL(ir.BillToName, c.{cust_name_col})        AS CustomerName,
+                    ir.InvoiceNo                                     AS InvoiceNo,
+                    ir.InvoiceDate                                   AS InvoiceDate,
+                    wp.WONo                                          AS WONo,
+                    wp.PartNo                                        AS PartNo,
+                    wp.Description                                   AS Description,
+                    ISNULL(wp.Qty, 0)                                AS Qty,
+                    ISNULL(wp.Cost, 0)                               AS CostEa,
+                    ISNULL(wp.Sell, 0)                               AS SellEa,
+                    ISNULL(wp.Cost, 0) * ISNULL(wp.Qty, 0)          AS CostTotal,
+                    ISNULL(wp.Sell, 0) * ISNULL(wp.Qty, 0)          AS SellTotal,
+                    (ISNULL(wp.Sell, 0) - ISNULL(wp.Cost, 0)) * ISNULL(wp.Qty, 0) AS GP,
+                    CASE
+                        WHEN ISNULL(wp.Sell, 0) * ISNULL(wp.Qty, 0) = 0 THEN NULL
+                        ELSE ROUND(
+                            ((ISNULL(wp.Sell, 0) - ISNULL(wp.Cost, 0)) * ISNULL(wp.Qty, 0))
+                            / (ISNULL(wp.Sell, 0) * ISNULL(wp.Qty, 0)) * 100, 1)
+                    END AS GPPct
+                FROM {schema}.InvoiceReg ir
+                INNER JOIN {schema}.WOParts wp ON ir.InvoiceNo = wp.WONo
+                LEFT JOIN {schema}.Customer c ON ir.BillTo = c.{cust_no_col}
+                WHERE {date_filter}
+                    AND (ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0)) != 0
+                    AND ISNULL(wp.Qty, 0) != 0
+                    {cust_where}
+                ORDER BY CustomerName, ir.InvoiceDate, ir.InvoiceNo, wp.PartNo
+                """
+
+            results = db.execute_query(query)
+
+            # Group by customer
+            customers = {}
+            for row in (results or []):
+                cust_no = row.get('CustomerNo', '') or ''
+                cust_name = row.get('CustomerName', '') or cust_no
+                key = cust_no
+
+                if key not in customers:
+                    customers[key] = {
+                        'customerNo': cust_no,
+                        'customerName': cust_name,
+                        'lines': [],
+                        'totalCost': 0.0,
+                        'totalSell': 0.0,
+                        'totalGP': 0.0,
+                    }
+
+                cost_total = float(row.get('CostTotal', 0) or 0)
+                sell_total = float(row.get('SellTotal', 0) or 0)
+                gp = float(row.get('GP', 0) or 0)
+                gp_pct = float(row.get('GPPct', 0) or 0) if row.get('GPPct') is not None else None
+
+                invoice_date = row.get('InvoiceDate')
+                invoice_date_str = invoice_date.strftime('%Y-%m-%d') if invoice_date else ''
+
+                customers[key]['lines'].append({
+                    'invoiceNo': row.get('InvoiceNo', ''),
+                    'invoiceDate': invoice_date_str,
+                    'woNo': row.get('WONo', ''),
+                    'partNo': row.get('PartNo', ''),
+                    'description': row.get('Description', ''),
+                    'qty': float(row.get('Qty', 0) or 0),
+                    'costEa': float(row.get('CostEa', 0) or 0),
+                    'sellEa': float(row.get('SellEa', 0) or 0),
+                    'costTotal': round(cost_total, 2),
+                    'sellTotal': round(sell_total, 2),
+                    'gp': round(gp, 2),
+                    'gpPct': round(gp_pct, 1) if gp_pct is not None else None,
+                })
+
+                customers[key]['totalCost'] += cost_total
+                customers[key]['totalSell'] += sell_total
+                customers[key]['totalGP'] += gp
+
+            # Compute customer-level GP%
+            customer_list = []
+            grand_cost = 0.0
+            grand_sell = 0.0
+            grand_gp = 0.0
+
+            for cust in sorted(customers.values(), key=lambda x: x['customerName'] or ''):
+                tc = cust['totalCost']
+                ts = cust['totalSell']
+                tg = cust['totalGP']
+                cust['totalCost'] = round(tc, 2)
+                cust['totalSell'] = round(ts, 2)
+                cust['totalGP'] = round(tg, 2)
+                cust['totalGPPct'] = round(tg / ts * 100, 1) if ts != 0 else None
+                customer_list.append(cust)
+                grand_cost += tc
+                grand_sell += ts
+                grand_gp += tg
+
+            return jsonify({
+                'customers': customer_list,
+                'customerCount': len(customer_list),
+                'grandTotalCost': round(grand_cost, 2),
+                'grandTotalSell': round(grand_sell, 2),
+                'grandTotalGP': round(grand_gp, 2),
+                'grandTotalGPPct': round(grand_gp / grand_sell * 100, 1) if grand_sell != 0 else None,
+                'startDate': start_date,
+                'endDate': end_date,
+            })
+
+        except Exception as e:
+            logger.error(f"Error in parts sold by customer: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e), 'type': 'parts_sold_by_customer_error'}), 500

@@ -30,6 +30,7 @@ const REPORT_REGISTRY = {
       'employee-performance': { label: 'Parts Contest' },
       'velocity': { label: 'Velocity' },
       'inventory-turns': { label: 'Inventory Turns' },
+      'sold-by-customer': { label: 'Parts Sold by Customer' },
     }
   },
   'service': {
