@@ -132,23 +132,12 @@ const ServiceSoldByCustomer = ({ user }) => {
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle>Service Sold by Customer</CardTitle>
-              <CardDescription>
-                Labor revenue vs. labor cost grouped by customer, with WO-level drill-down and GP analysis.
-                Red rows are below the <strong>{CURRIE_SERVICE_TARGET}% Currie model target</strong> for Service.
-              </CardDescription>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowMethodology(v => !v)}
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
-            >
-              <Info className="h-4 w-4" />
-              {showMethodology ? 'Hide' : 'How is this calculated?'}
-            </Button>
+          <div>
+            <CardTitle>Service Sold by Customer</CardTitle>
+            <CardDescription>
+              Labor revenue vs. labor cost grouped by customer, with WO-level drill-down and GP analysis.
+              Red rows are below the <strong>{CURRIE_SERVICE_TARGET}% Currie model target</strong> for Service.
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -186,16 +175,20 @@ const ServiceSoldByCustomer = ({ user }) => {
         </CardContent>
       </Card>
 
-      {/* ── Methodology Panel (CFO validation) ─────────────────────────── */}
-      {showMethodology && (
+      {/* ── CFO Methodology Panel ──────────────────────────────────────── */}
+      {data && (
         <Card className="border-blue-200 bg-blue-50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base text-blue-900">Calculation Methodology</CardTitle>
-            <CardDescription className="text-blue-700">
-              How every number in this report is calculated — for CFO review and validation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-blue-900 space-y-4">
+          <CardContent className="pt-4">
+            <button
+              className="flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900 w-full text-left"
+              onClick={() => setShowMethodology(prev => !prev)}
+            >
+              <Info className="h-4 w-4" />
+              How is this calculated? (CFO Validation Guide)
+              <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${showMethodology ? 'rotate-180' : ''}`} />
+            </button>
+            {showMethodology && (
+              <div className="mt-3 text-sm text-blue-900 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <div className="font-semibold border-b border-blue-200 pb-1">Revenue (Labor Sell)</div>
@@ -258,7 +251,9 @@ const ServiceSoldByCustomer = ({ user }) => {
                   red — both at the customer summary level and at the individual WO level.
                 </p>
               </div>
+              </div>
             </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -311,38 +306,26 @@ const ServiceSoldByCustomer = ({ user }) => {
         </div>
       )}
 
-      {/* ── Currie target progress bar ──────────────────────────────────── */}
-      {data && data.grandTotalGPPct !== null && (
-        <Card>
+      {/* ── Currie Target Progress Bar ─────────────────────────────────── */}
+      {data && (
+        <Card className={data.grandTotalGPPct !== null && data.grandTotalGPPct < CURRIE_SERVICE_TARGET ? 'border-red-300' : 'border-green-300'}>
           <CardContent className="pt-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-medium">
-                Overall GP% vs. Currie Target ({CURRIE_SERVICE_TARGET}%)
-              </span>
-              <span className={`text-sm font-bold ${belowTarget(data.grandTotalGPPct) ? 'text-red-600' : 'text-green-600'}`}>
-                {data.grandTotalGPPct?.toFixed(1)}%
-                {belowTarget(data.grandTotalGPPct)
-                  ? ` (${(CURRIE_SERVICE_TARGET - data.grandTotalGPPct).toFixed(1)}% below target)`
-                  : ` (${(data.grandTotalGPPct - CURRIE_SERVICE_TARGET).toFixed(1)}% above target)`}
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Currie Model Target: {CURRIE_SERVICE_TARGET}% Service GP</span>
+              <span className={`text-sm font-bold ${data.grandTotalGPPct !== null && data.grandTotalGPPct < CURRIE_SERVICE_TARGET ? 'text-red-600' : 'text-green-600'}`}>
+                {data.grandTotalGPPct !== null ? `${data.grandTotalGPPct.toFixed(1)}% actual` : '—'}
               </span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3 relative">
-              {/* Target marker */}
               <div
-                className="absolute top-0 h-3 w-0.5 bg-gray-600 z-10"
-                style={{ left: `${Math.min(CURRIE_SERVICE_TARGET, 100)}%` }}
-                title={`Currie target: ${CURRIE_SERVICE_TARGET}%`}
+                className={`h-3 rounded-full transition-all ${data.grandTotalGPPct !== null && data.grandTotalGPPct >= CURRIE_SERVICE_TARGET ? 'bg-green-500' : 'bg-red-500'}`}
+                style={{ width: `${Math.min(100, Math.max(0, (data.grandTotalGPPct || 0) / CURRIE_SERVICE_TARGET * 100))}%` }}
               />
-              {/* Actual bar */}
-              <div
-                className={`h-3 rounded-full transition-all ${belowTarget(data.grandTotalGPPct) ? 'bg-red-500' : 'bg-green-500'}`}
-                style={{ width: `${Math.min(Math.max(data.grandTotalGPPct || 0, 0), 100)}%` }}
-              />
+              <div className="absolute top-0 h-3 w-0.5 bg-gray-600" style={{ left: '100%', transform: 'translateX(-1px)' }} />
             </div>
             <div className="flex justify-between text-xs text-muted-foreground mt-1">
               <span>0%</span>
               <span className="font-medium">Target: {CURRIE_SERVICE_TARGET}%</span>
-              <span>100%</span>
             </div>
           </CardContent>
         </Card>
