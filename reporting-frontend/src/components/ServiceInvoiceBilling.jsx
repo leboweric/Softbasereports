@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 import {
   Select,
   SelectContent,
@@ -379,6 +380,31 @@ const ServiceInvoiceBilling = () => {
 
   return (
     <div className="space-y-6">
+      <CfoMethodologyCard
+        title="Customer Billing"
+        items={[
+          {
+            label: 'Invoice Revenue',
+            formula: 'InvoiceReg.LaborTaxable + InvoiceReg.LaborNonTax + InvoiceReg.PartsSell',
+            detail: 'Total amount billed to the customer on each invoice. Labor (taxable + non-taxable) and parts are shown separately so you can see the mix of each invoice.'
+          },
+          {
+            label: 'Service Invoice Filter',
+            formula: 'InvoiceReg.SaleDept IN (service dept codes from Dept table)',
+            detail: 'Only invoices from service departments are included. Department codes are dynamically looked up from the Dept table — no hardcoded values.'
+          },
+          {
+            label: 'Invoice Date Range',
+            formula: 'InvoiceReg.InvoiceDate BETWEEN start_date AND end_date',
+            detail: 'Filtered by the invoice posting date in Softbase. Use the date picker to narrow the range. Deleted invoices (DeletionTime IS NOT NULL) are excluded.'
+          },
+          {
+            label: 'Data Source',
+            formula: 'InvoiceReg table filtered by SaleDept and date range',
+            detail: 'Customer list comes from the Customer table. Invoice detail from InvoiceReg joined to Customer on BillTo = CustNo.'
+          },
+        ]}
+      />
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { apiUrl } from '@/lib/api'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 
 const CustomerProfitability = ({ department = 'all' }) => {
   const [data, setData] = useState(null)
@@ -242,6 +243,31 @@ const CustomerProfitability = ({ department = 'all' }) => {
 
   return (
     <div className="space-y-6">
+      <CfoMethodologyCard
+        title="Customer Profitability"
+        items={[
+          {
+            label: 'Labor Revenue',
+            formula: 'SUM(InvoiceReg.LaborTaxable + InvoiceReg.LaborNonTax) per customer',
+            detail: 'Total labor billed to each customer across all service invoices in the date range. Taxable and non-taxable labor are combined.'
+          },
+          {
+            label: 'Labor Cost',
+            formula: 'SUM(WOLabor.Cost) per customer',
+            detail: 'Actual technician cost from the WOLabor table, aggregated per customer. This is the same cost source used by Cash Burn and Service Sold by Customer.'
+          },
+          {
+            label: 'Gross Profit %',
+            formula: '(Labor Revenue - Labor Cost) / Labor Revenue x 100',
+            detail: 'Service GP% per customer. The Currie model target is 65%. Customers below this threshold may be underpriced, require excessive unbillable time, or have warranty/policy adjustments.'
+          },
+          {
+            label: 'Data Source',
+            formula: 'InvoiceReg + WOLabor + Customer tables',
+            detail: 'Revenue from InvoiceReg (service depts only). Cost from WOLabor joined via WONo. Internal customer accounts (900xxx for Bennett, IPS/IPC prefix for IPS) are excluded.'
+          },
+        ]}
+      />
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Customer Profitability Analysis</h1>

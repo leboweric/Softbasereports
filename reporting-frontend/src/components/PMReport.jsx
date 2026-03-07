@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 
 const PMReport = ({ user }) => {
   const [pmData, setPmData] = useState(null)
@@ -357,6 +358,31 @@ const PMReport = ({ user }) => {
 
   return (
     <div className="space-y-6">
+      <CfoMethodologyCard
+        title="PM's (Preventive Maintenance)"
+        items={[
+          {
+            label: 'PM Due Date',
+            formula: 'PM.NextPMDate (from PM table)',
+            detail: 'The scheduled next PM date stored on each PM record in Softbase. Overdue = NextPMDate < today. Due Soon = within 30 days.'
+          },
+          {
+            label: 'PM Status Buckets',
+            formula: 'Overdue | Due Soon (≤30 days) | Scheduled (>30 days) | Not Scheduled',
+            detail: 'Overdue PMs represent missed service commitments and potential contract liability. Not Scheduled means no NextPMDate is set on the PM record.'
+          },
+          {
+            label: 'Assigned Technician',
+            formula: 'PM.TechnicianName',
+            detail: 'The technician assigned to perform the PM, as recorded on the PM record in Softbase.'
+          },
+          {
+            label: 'Data Source',
+            formula: 'PM table filtered by org',
+            detail: 'All active PM records for the organization. Completed PMs (where a completion date is recorded) are excluded from the due/overdue counts.'
+          },
+        ]}
+      />
       {/* Technician Filter and Export */}
       <Card>
         <CardHeader>

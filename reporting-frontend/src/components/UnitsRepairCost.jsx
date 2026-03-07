@@ -23,6 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { apiUrl } from '@/lib/api'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 
 const UnitsRepairCost = () => {
   const [loading, setLoading] = useState(false)
@@ -338,6 +339,31 @@ const UnitsRepairCost = () => {
 
   return (
     <div className="space-y-6">
+      <CfoMethodologyCard
+        title="Units by Repair Cost"
+        items={[
+          {
+            label: 'Total Repair Cost',
+            formula: 'SUM(WOLabor.Cost + WOParts.Cost) per unit',
+            detail: 'Actual technician labor cost plus parts cost for all closed work orders on each unit within the date range. Identifies which units are consuming the most maintenance resources.'
+          },
+          {
+            label: 'Unit Identification',
+            formula: 'WO.UnitNo joined to Unit table',
+            detail: 'Units are identified by their Softbase unit number. Make, model, and serial number come from the Unit table. Customer assignment comes from Unit.CustNo.'
+          },
+          {
+            label: 'Replacement Threshold',
+            formula: 'Currie model: annual repair cost > 40% of unit replacement value',
+            detail: 'Units exceeding the Currie replacement threshold are flagged. High repair cost relative to replacement value is the primary indicator that a unit should be replaced rather than repaired.'
+          },
+          {
+            label: 'Data Source',
+            formula: 'WO + WOLabor + WOParts + Unit + Customer tables',
+            detail: 'Repair costs from WOLabor and WOParts joined to WO on WONo. Unit details from the Unit table. Grouped by UnitNo and sorted by total repair cost descending.'
+          },
+        ]}
+      />
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

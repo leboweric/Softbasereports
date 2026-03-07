@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiUrl } from '@/lib/api';
 import { Users, TrendingUp, Award, ChevronDown, ChevronUp, Wrench, Clock, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card';
 
 const PMTechnicianContest = () => {
   const [data, setData] = useState(null);
@@ -205,6 +206,31 @@ const PMTechnicianContest = () => {
 
   return (
     <div className="space-y-6">
+      <CfoMethodologyCard
+        title="PM Contest"
+        items={[
+          {
+            label: 'PMs Completed',
+            formula: 'COUNT(WO) WHERE WO.Type = PM AND WO.CloseDate IN range',
+            detail: 'Count of PM work orders closed by each technician within the selected date range. A PM is counted as completed when its CloseDate is set in Softbase.'
+          },
+          {
+            label: 'PM Revenue',
+            formula: 'SUM(InvoiceReg.LaborTaxable + InvoiceReg.LaborNonTax) for PM WOs',
+            detail: 'Total labor billed on PM invoices for each technician. Parts billed on PM WOs are excluded per the Currie model (parts revenue belongs to the Parts P&L).'
+          },
+          {
+            label: 'Avg Time per PM',
+            formula: 'SUM(WOLabor.Hours) / COUNT(PM WOs)',
+            detail: 'Average technician hours spent per PM work order. Lower times indicate efficient PM execution. Benchmarked against the Currie model standard PM time.'
+          },
+          {
+            label: 'Data Source',
+            formula: 'WO table + WOLabor table + InvoiceReg table',
+            detail: 'PM WOs identified by WO.Type = PM. Labor hours from WOLabor. Revenue from InvoiceReg. Contest period default: Nov 1, 2025 – Jan 31, 2026.'
+          },
+        ]}
+      />
       {/* Contest Leaderboard Banner - Only show for contest period */}
       {dateRange === 'contest' && data && data.employees.length > 0 && (
         <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300">

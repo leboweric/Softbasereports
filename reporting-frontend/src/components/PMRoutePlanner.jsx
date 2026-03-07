@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 
 const PMRoutePlanner = ({ user }) => {
   const [pmData, setPmData] = useState(null)
@@ -247,6 +248,31 @@ const PMRoutePlanner = ({ user }) => {
 
   return (
     <div className="space-y-6">
+      <CfoMethodologyCard
+        title="PM Route Planner"
+        items={[
+          {
+            label: 'Geographic Clustering',
+            formula: 'PM.City + PM.State (from PM table)',
+            detail: 'PMs are grouped by city/state from the customer address on the PM record. This allows technicians to batch nearby PMs into a single route to reduce drive time.'
+          },
+          {
+            label: 'PM Due Status',
+            formula: 'PM.NextPMDate vs. today',
+            detail: 'Same data source as the PM Schedule tab — overdue and due-soon PMs are prioritized. The route planner shows all active PMs regardless of status so dispatchers can plan ahead.'
+          },
+          {
+            label: 'Assigned Technician',
+            formula: 'PM.TechnicianName',
+            detail: 'Filter by technician to see only that tech\'s PM route. Useful for building individual daily route plans.'
+          },
+          {
+            label: 'Data Source',
+            formula: 'PM table (same as PM Schedule tab)',
+            detail: 'Same underlying data as the PM Schedule tab, reorganized by geography instead of due date. No additional data is fetched.'
+          },
+        ]}
+      />
       {/* Header */}
       <Card>
         <CardHeader>

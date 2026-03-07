@@ -26,6 +26,7 @@ import {
   Cell
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 
 const MaintenanceContractProfitability = () => {
   const [data, setData] = useState(null)
@@ -240,6 +241,31 @@ const MaintenanceContractProfitability = () => {
 
   return (
     <div className="space-y-6">
+      <CfoMethodologyCard
+        title="Maintenance Contract Profitability"
+        items={[
+          {
+            label: 'Contract Revenue',
+            formula: 'SUM(InvoiceReg.LaborTaxable + InvoiceReg.LaborNonTax) for GM WOs',
+            detail: 'Labor billed on Guaranteed Maintenance (GM) work orders. GM WOs are identified by WO.Type = GM or the equivalent code in Softbase.'
+          },
+          {
+            label: 'Contract Cost',
+            formula: 'SUM(WOLabor.Cost + WOParts.Cost) for GM WOs',
+            detail: 'Actual technician labor cost plus parts cost on each GM work order. This is the true cost of servicing the contract, regardless of what was billed.'
+          },
+          {
+            label: 'True Profit',
+            formula: 'Contract Revenue - Contract Cost',
+            detail: 'The actual profit on the maintenance contract after accounting for all labor and parts costs. Negative true profit means the contract is being serviced at a loss.'
+          },
+          {
+            label: 'Data Source',
+            formula: 'WO (Type=GM) + WOLabor + WOParts + InvoiceReg tables',
+            detail: 'GM work orders from the WO table. Costs from WOLabor and WOParts. Revenue from InvoiceReg matched by WONo. Grouped by customer.'
+          },
+        ]}
+      />
       {/* Date Filter Controls */}
       <Card>
         <CardHeader>

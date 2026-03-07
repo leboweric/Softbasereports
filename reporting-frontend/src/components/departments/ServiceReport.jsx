@@ -54,6 +54,7 @@ import UnitsRepairCost from '../UnitsRepairCost'
 import CostPerHour from '../CostPerHour'
 import ServiceSoldByCustomer from './ServiceSoldByCustomer'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 import { MethodologyPanel } from '@/components/ui/methodology-panel'
 import { SERVICE_METHODOLOGY } from '@/config/ipsPageMethodology'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
@@ -1065,6 +1066,31 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'shop-work-orders') && (
         <TabsContent value="shop-work-orders" className="space-y-6">
+          <CfoMethodologyCard
+            title="Cash Burn"
+            items={[
+              {
+                label: 'Open WO Labor Cost',
+                formula: 'SUM(WOLabor.Cost) WHERE WO.ClosedDate IS NULL',
+                detail: 'Actual technician cost already incurred on open work orders. This is real cash that has been spent but not yet invoiced or recovered.'
+              },
+              {
+                label: 'Quoted vs. Actual Hours',
+                formula: 'WO.QuotedHours vs. SUM(WOLabor.Hours)',
+                detail: 'Cost overrun = actual hours exceed quoted hours. WOs with overruns are flagged as they indicate jobs that will be invoiced at a loss or require a difficult conversation with the customer.'
+              },
+              {
+                label: 'Cash Burn Rate',
+                formula: 'SUM(WOLabor.Cost) / Days WO has been open',
+                detail: 'How much cash is burning per day on each open WO. Long-open WOs with high daily burn rates represent the greatest billing urgency.'
+              },
+              {
+                label: 'Data Source',
+                formula: 'WO (Type=SH, ClosedDate IS NULL) + WOLabor tables',
+                detail: 'Shop (SH) work orders only. Internal expense accounts (900xxx / IPS-IPC prefix) and quote WOs (9xxxxx) are excluded. Labor cost from WOLabor.Cost.'
+              },
+            ]}
+          />
           {/* Cash Burn Work Orders with Cost Overrun Alerts */}
           {shopWorkOrdersLoading ? (
             <Card>
@@ -1326,6 +1352,31 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'work-orders') && (
         <TabsContent value="work-orders" className="space-y-6">
+          <CfoMethodologyCard
+            title="Cash Stalled"
+            items={[
+              {
+                label: 'Awaiting Invoice',
+                formula: 'WO.ClosedDate IS NOT NULL AND InvoiceReg.InvoiceDate IS NULL',
+                detail: 'Work orders that have been closed in Softbase but have not yet been invoiced. These represent completed work where cash collection is stalled.'
+              },
+              {
+                label: 'Days Since Close',
+                formula: 'DATEDIFF(day, WO.ClosedDate, today)',
+                detail: 'How long the WO has been sitting closed without an invoice. WOs over 3 days are flagged in orange as they represent a billing delay risk.'
+              },
+              {
+                label: 'Stalled Revenue at Risk',
+                formula: 'SUM(WOLabor.Cost) for uninvoiced closed WOs',
+                detail: 'The minimum revenue at risk is the labor cost already incurred. Actual billed amount will be higher once invoiced, but delay increases the risk of disputes or write-offs.'
+              },
+              {
+                label: 'Data Source',
+                formula: 'WO (ClosedDate IS NOT NULL) LEFT JOIN InvoiceReg ON WONo',
+                detail: 'Closed WOs with no matching invoice in InvoiceReg. Includes Service (SV), Shop (SH), and PM work order types. Internal accounts excluded.'
+              },
+            ]}
+          />
           {/* Service, Shop & PM Work Orders Awaiting Invoice Card */}
           {awaitingInvoiceData && awaitingInvoiceData.count > 0 && (
             <Card 

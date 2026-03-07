@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 import {
   Table,
   TableBody,
@@ -260,6 +261,31 @@ const CostPerHour = () => {
 
   return (
     <div className="space-y-6">
+      <CfoMethodologyCard
+        title="Cost per Hour"
+        items={[
+          {
+            label: 'Total Repair Cost',
+            formula: 'SUM(WOLabor.Cost + WOParts.Cost) per unit',
+            detail: 'Actual technician labor cost (WOLabor.Cost) plus parts cost (WOParts.Cost) for all closed WOs on each unit within the date range.'
+          },
+          {
+            label: 'Operating Hours',
+            formula: 'Unit.HourMeter (current) - Unit.HourMeter (start of period)',
+            detail: 'Hours are sourced from the unit hour meter readings recorded in Softbase. If hour meter data is missing or zero, the unit is excluded from the per-hour calculation.'
+          },
+          {
+            label: 'Cost per Hour',
+            formula: 'Total Repair Cost ÷ Operating Hours',
+            detail: 'The primary metric. Lower cost per hour indicates better asset reliability and maintenance efficiency. Benchmarked against the Currie model fleet average.'
+          },
+          {
+            label: 'Data Source',
+            formula: 'WO + WOLabor + WOParts + Unit tables',
+            detail: 'Repair costs from WOLabor and WOParts joined to WO. Hour meter data from the Unit table. Grouped by forklift series (Unit.Model prefix).'
+          },
+        ]}
+      />
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
