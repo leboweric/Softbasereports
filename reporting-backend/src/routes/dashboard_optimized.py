@@ -2827,28 +2827,34 @@ def refresh_ceo_dashboard():
     """
     Manually trigger a refresh of the CEO Dashboard ETL.
     Admin endpoint for on-demand data refresh.
+    Accepts optional JSON body: {"org_id": 4} to run for a specific org only.
     """
     try:
         from src.etl.etl_ceo_dashboard import run_ceo_dashboard_etl
         
-        logger.info("Manual CEO Dashboard ETL triggered")
-        success = run_ceo_dashboard_etl()
+        # Allow targeting a specific org
+        body = request.get_json(silent=True) or {}
+        org_id = body.get('org_id')
+        
+        logger.info(f"Manual CEO Dashboard ETL triggered (org_id={org_id or 'all'})")
+        success = run_ceo_dashboard_etl(org_id=org_id)
         
         if success:
             return jsonify({
                 'success': True,
-                'message': 'CEO Dashboard data refreshed successfully',
+                'message': f'CEO Dashboard data refreshed successfully (org_id={org_id or "all"})',
                 'refreshed_at': datetime.now().isoformat()
             })
         else:
             return jsonify({
                 'success': False,
-                'message': 'ETL job completed with errors'
+                'message': f'ETL job completed with errors for org_id={org_id or "all"}'
             }), 500
             
     except Exception as e:
         logger.error(f"Manual CEO Dashboard ETL refresh failed: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 
 @dashboard_optimized_bp.route('/api/dashboard/active-customers-export', methods=['GET'])
