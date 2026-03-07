@@ -436,6 +436,28 @@ class PostgreSQLService:
         CREATE INDEX IF NOT EXISTS idx_rep_trans_locked ON sales_rep_monthly_transactions(is_locked);
         """
 
+
+    def _get_tech_wage_rates_sql(self):
+        """SQL to create Tech Wage Rates table"""
+        return """
+        CREATE TABLE IF NOT EXISTS tech_wage_rates (
+            id SERIAL PRIMARY KEY,
+            org_id INTEGER NOT NULL,
+            tech_name VARCHAR(150) NOT NULL,
+            fully_loaded_rate NUMERIC(10,2) NOT NULL DEFAULT 0,
+            notes TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by VARCHAR(100),
+            updated_at TIMESTAMP,
+            updated_by VARCHAR(100),
+            UNIQUE(org_id, tech_name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_tech_wage_org ON tech_wage_rates(org_id);
+        CREATE INDEX IF NOT EXISTS idx_tech_wage_name ON tech_wage_rates(tech_name);
+        CREATE INDEX IF NOT EXISTS idx_tech_wage_active ON tech_wage_rates(is_active);
+        """
+
 # Singleton instance
 def get_postgres_db():
     """Get the PostgreSQL service instance"""

@@ -12610,6 +12610,31 @@ def register_department_routes(reports_bp):
             dept_unbilled  = 0.0
             dept_cost      = 0.0
             dept_sell      = 0.0
+            dept_wage_cost = 0.0
+
+            # ── Step 4b: Load fully-loaded wage rates from PostgreSQL ─────────
+            wage_lookup = {}  # tech_name (lower) -> fully_loaded_rate
+            try:
+                from src.services.postgres_service import PostgreSQLService as _PGS
+                from src.models.user import User as _User
+                _user_id = get_jwt_identity()
+                _user = _User.query.get(int(_user_id))
+                _org_id = _user.organization_id if _user else None
+                if _org_id:
+                    _pg = _PGS()
+                    with _pg.get_connection() as _pg_conn:
+                        if _pg_conn:
+                            _pg_cur = _pg_conn.cursor()
+                            _pg_cur.execute(_pg._get_tech_wage_rates_sql())
+                            _pg_cur.execute(
+                                'SELECT tech_name, fully_loaded_rate FROM tech_wage_rates WHERE org_id = %s AND is_active = TRUE',
+                                (_org_id,)
+                            )
+                            for _wr in _pg_cur.fetchall():
+                                wage_lookup[_wr['tech_name'].lower()] = float(_wr['fully_loaded_rate'] or 0)
+            except Exception as _we:
+                logger.warning(f'Could not load wage rates: {_we}')
+
 
             for row in (rows or []):
                 tech_name    = row.get('TechName', 'Unknown')
@@ -12623,6 +12648,13 @@ def register_department_routes(reports_bp):
                 application  = round(applied_hrs / hours_paid_per_tech * 100, 1) if hours_paid_per_tech > 0 else None
                 efficiency   = round(billed_hrs  / applied_hrs         * 100, 1) if applied_hrs  > 0 else None
                 productivity = round(billed_hrs  / hours_paid_per_tech * 100, 1) if hours_paid_per_tech > 0 else None
+
+                # True profitability using fully-loaded wage rate
+                wage_rate       = wage_lookup.get(tech_name.lower(), None)
+                wage_cost       = round(wage_rate * hours_paid_per_tech, 2) if wage_rate is not None else None
+                true_gp_dollars = round(total_sell - wage_cost, 2) if wage_cost is not None else None
+                true_gp_pct     = round(true_gp_dollars / total_sell * 100, 1) if (wage_cost is not None and total_sell > 0) else None
+                break_even_hrs  = round(wage_cost / (total_sell / billed_hrs), 1) if (wage_cost is not None and billed_hrs > 0 and total_sell > 0) else None
 
                 technicians.append({
                     'techName':       tech_name,
@@ -12639,17 +12671,29 @@ def register_department_routes(reports_bp):
                     'applicationOk':  (application  is not None and application  >= CURRIE_APPLICATION),
                     'efficiencyOk':   (efficiency   is not None and efficiency   >= CURRIE_EFFICIENCY),
                     'productivityOk': (productivity is not None and productivity >= CURRIE_PRODUCTIVITY),
+                    # True profitability fields (None if no wage rate configured)
+                    'wageRate':       wage_rate,
+                    'wageCost':       wage_cost,
+                    'trueGpDollars':  true_gp_dollars,
+                    'trueGpPct':      true_gp_pct,
+                    'breakEvenHours': break_even_hrs,
+                    'hasWageRate':    wage_rate is not None,
                 })
                 dept_applied   += applied_hrs
                 dept_billed    += billed_hrs
                 dept_unbilled  += unbilled_hrs
                 dept_cost      += total_cost
                 dept_sell      += total_sell
+                if wage_cost is not None:
+                    dept_wage_cost += wage_cost
 
             # ── Step 5: Department aggregate ─────────────────────────────────
             total_techs       = len(technicians)
             dept_hours_paid   = round(hours_paid_per_tech * total_techs, 1)
             dept_application  = round(dept_applied / dept_hours_paid * 100, 1) if dept_hours_paid > 0 else None
+            techs_with_rates  = sum(1 for t in technicians if t['hasWageRate'])
+            dept_true_gp      = round(dept_sell - dept_wage_cost, 2) if techs_with_rates > 0 else None
+            dept_true_gp_pct  = round(dept_true_gp / dept_sell * 100, 1) if (dept_true_gp is not None and dept_sell > 0) else None
             dept_efficiency   = round(dept_billed  / dept_applied    * 100, 1) if dept_applied  > 0 else None
             dept_productivity = round(dept_billed  / dept_hours_paid * 100, 1) if dept_hours_paid > 0 else None
 
@@ -12659,6 +12703,11 @@ def register_department_routes(reports_bp):
                 'appliedHours':   round(dept_applied, 1),
                 'billedHours':    round(dept_billed,  1),
                 'unbilledHours':  round(dept_unbilled, 1),
+                'wageCost':       round(dept_wage_cost, 2) if techs_with_rates > 0 else None,
+                'trueGpDollars':  dept_true_gp,
+                'trueGpPct':      dept_true_gp_pct,
+                'techsWithRates': techs_with_rates,
+                'totalTechs':     total_techs,
                 'application':    dept_application,
                 'efficiency':     dept_efficiency,
                 'productivity':   dept_productivity,
@@ -12672,6 +12721,8 @@ def register_department_routes(reports_bp):
             result = {
                 'technicians':      technicians,
                 'department':       department,
+                'wageRatesConfigured': techs_with_rates > 0,
+                'techsWithRates':   techs_with_rates,
                 'startDate':        start_date,
                 'endDate':          end_date,
                 'weeksPeriod':      round(weeks_in_period, 1),
