@@ -38,6 +38,7 @@ const METRIC_TOOLTIPS = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt1 = (n) => (n == null ? '—' : n.toFixed(1))
+const fmt2 = (n) => (n == null ? '—' : n.toFixed(2))
 const fmtPct = (n) => (n == null ? '—' : `${n.toFixed(1)}%`)
 const fmtCurrency = (n) => (n == null ? '—' : `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`)
 
@@ -288,7 +289,7 @@ const TechnicianProductivity = ({ user }) => {
                     <MetricBadge value={dept.efficiency} target={CURRIE_EFFICIENCY} label="Efficiency" />
                     <div className="mt-2 text-xs text-center text-muted-foreground space-y-0.5">
                       <div>Billed: <span className="font-medium">{fmt1(dept.billedHours)} hrs</span></div>
-                      <div>Unbilled: <span className="font-medium">{fmt1(dept.unbilledHours)} hrs</span></div>
+                      <div>Unbilled: <span className="font-medium">{fmt2(dept.unbilledHours)} hrs</span></div>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
                       <div
@@ -388,7 +389,7 @@ const TechnicianProductivity = ({ user }) => {
                       <TableCell className="text-right text-sm">{fmt1(tech.appliedHours)}</TableCell>
                       <TableCell className="text-right text-sm">{fmt1(tech.billedHours)}</TableCell>
                       <TableCell className={`text-right text-sm ${tech.unbilledHours > 0 ? 'text-amber-600 font-medium' : ''}`}>
-                        {fmt1(tech.unbilledHours)}
+                        {fmt2(tech.unbilledHours)}
                       </TableCell>
                       <StatusCell value={tech.application}  target={CURRIE_APPLICATION} />
                       <StatusCell value={tech.efficiency}   target={CURRIE_EFFICIENCY} />
@@ -407,7 +408,7 @@ const TechnicianProductivity = ({ user }) => {
                                 <div>Paid (40 hr/wk × {data.weeksPeriod} wks): <span className="font-semibold">{fmt1(tech.hoursPaid)}</span></div>
                                 <div>Applied (on jobs): <span className="font-semibold">{fmt1(tech.appliedHours)}</span></div>
                                 <div>Billed (Sell &gt; 0): <span className="font-semibold">{fmt1(tech.billedHours)}</span></div>
-                                <div className="text-amber-700">Unbilled (Sell = 0): <span className="font-semibold">{fmt1(tech.unbilledHours)}</span></div>
+                                <div className="text-amber-700">Unbilled (Sell = 0): <span className="font-semibold">{fmt2(tech.unbilledHours)}</span></div>
                               </div>
                             </div>
                             <div>
@@ -465,7 +466,7 @@ const TechnicianProductivity = ({ user }) => {
                   <TableCell className="text-right">{fmt1(dept.hoursPaid)}</TableCell>
                   <TableCell className="text-right">{fmt1(dept.appliedHours)}</TableCell>
                   <TableCell className="text-right">{fmt1(dept.billedHours)}</TableCell>
-                  <TableCell className="text-right">{fmt1(dept.unbilledHours)}</TableCell>
+                  <TableCell className="text-right">{fmt2(dept.unbilledHours)}</TableCell>
                   <StatusCell value={dept.application}  target={CURRIE_APPLICATION} />
                   <StatusCell value={dept.efficiency}   target={CURRIE_EFFICIENCY} />
                   <StatusCell value={dept.productivity} target={CURRIE_PRODUCTIVITY} />
