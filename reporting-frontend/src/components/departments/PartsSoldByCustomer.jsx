@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { AlertCircle, Download, Search, ChevronDown, ChevronRight } from 'lucide-react'
+import { AlertCircle, Download, Search, ChevronDown, ChevronRight, Info } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
 
@@ -20,6 +20,7 @@ const PartsSoldByCustomer = ({ user }) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [expandedCustomers, setExpandedCustomers] = useState({})
+  const [showMethodology, setShowMethodology] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -173,6 +174,66 @@ const PartsSoldByCustomer = ({ user }) => {
               <AlertCircle className="h-4 w-4" />
               <span>{error}</span>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Currie Target Progress Bar */}
+      {data && (
+        <Card className={data.grandTotalGPPct !== null && data.grandTotalGPPct < CURRIE_PARTS_TARGET ? 'border-red-300' : 'border-green-300'}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Currie Model Target: {CURRIE_PARTS_TARGET}% Parts GP</span>
+              <span className={`text-sm font-bold ${data.grandTotalGPPct !== null && data.grandTotalGPPct < CURRIE_PARTS_TARGET ? 'text-red-600' : 'text-green-600'}`}>
+                {data.grandTotalGPPct !== null ? `${data.grandTotalGPPct.toFixed(1)}% actual` : '—'}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3 relative">
+              <div
+                className={`h-3 rounded-full transition-all ${data.grandTotalGPPct !== null && data.grandTotalGPPct >= CURRIE_PARTS_TARGET ? 'bg-green-500' : 'bg-red-500'}`}
+                style={{ width: `${Math.min(100, Math.max(0, (data.grandTotalGPPct || 0) / CURRIE_PARTS_TARGET * 100))}%` }}
+              />
+              <div className="absolute top-0 h-3 w-0.5 bg-gray-600" style={{ left: '100%', transform: 'translateX(-1px)' }} />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+              <span>0%</span>
+              <span className="font-medium">Target: {CURRIE_PARTS_TARGET}%</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* CFO Methodology Panel */}
+      {data && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-4">
+            <button
+              className="flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900 w-full text-left"
+              onClick={() => setShowMethodology(prev => !prev)}
+            >
+              <Info className="h-4 w-4" />
+              How is this calculated? (CFO Validation Guide)
+              <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${showMethodology ? 'rotate-180' : ''}`} />
+            </button>
+            {showMethodology && (
+              <div className="mt-3 space-y-3 text-sm text-blue-900">
+                <div>
+                  <span className="font-semibold">Parts Sell:</span> Sum of <code className="bg-blue-100 px-1 rounded">InvoiceReg.SellPrice × QTY</code> for all part lines on invoices within the date range, filtered to Parts department sale codes (from the Dept table).
+                </div>
+                <div>
+                  <span className="font-semibold">Parts Cost:</span> Sum of <code className="bg-blue-100 px-1 rounded">WOParts.Cost</code> — the standard cost rate set in Softbase's item master at time of posting. Note: if standard costs are stale or incorrectly configured, cost figures may not reflect actual purchase cost.
+                </div>
+                <div>
+                  <span className="font-semibold">Gross Profit %:</span> <code className="bg-blue-100 px-1 rounded">(Sell − Cost) / Sell × 100</code>. Lines with zero sell are excluded from GP% calculation.
+                </div>
+                <div>
+                  <span className="font-semibold">Currie Model Target (40%):</span> The Currie dealership model benchmarks Parts GP at 40% or above. Rows highlighted in red are below this threshold and warrant review.
+                </div>
+                <div>
+                  <span className="font-semibold">Data Source:</span> Softbase <code className="bg-blue-100 px-1 rounded">InvoiceReg</code> joined to <code className="bg-blue-100 px-1 rounded">WOParts</code>. Matches the Softbase "Parts Sold by Customer w/ Cost" report. Deleted invoices (<code className="bg-blue-100 px-1 rounded">DeletionTime IS NOT NULL</code>) are excluded.
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
