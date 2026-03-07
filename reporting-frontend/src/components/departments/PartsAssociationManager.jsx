@@ -89,7 +89,7 @@ export default function PartsAssociationManager() {
   const [showAiPanel, setShowAiPanel] = useState(false)
   const [aiDiscovering, setAiDiscovering] = useState(false)
   const [aiResults, setAiResults] = useState([])
-  const [aiParams, setAiParams] = useState({ minSupport: 3, minConfidence: 40, lookbackDays: 365 })
+  const [aiParams, setAiParams] = useState({ minSupport: 3, minConfidence: 40, minLift: 1.5, lookbackDays: 365, excludePrefixes: '' })
   const [selectedAiRows, setSelectedAiRows] = useState(new Set())
   const [importingAi, setImportingAi] = useState(false)
 
@@ -205,7 +205,9 @@ export default function PartsAssociationManager() {
       const params = new URLSearchParams({
         min_support: aiParams.minSupport,
         min_confidence: aiParams.minConfidence,
+        min_lift: aiParams.minLift,
         lookback_days: aiParams.lookbackDays,
+        exclude_prefixes: aiParams.excludePrefixes,
       })
       const res = await fetch(apiUrl(`/api/parts-associations/market-basket?${params}`), { headers })
       if (!res.ok) throw new Error(`Server error ${res.status}`)
@@ -374,7 +376,7 @@ export default function PartsAssociationManager() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="space-y-1">
                 <Label>Min. Co-occurrences</Label>
                 <Input type="number" min="1" value={aiParams.minSupport}
@@ -388,11 +390,26 @@ export default function PartsAssociationManager() {
                 <p className="text-xs text-gray-500">% of trigger WOs that also had recommended part</p>
               </div>
               <div className="space-y-1">
+                <Label>Min. Lift Score</Label>
+                <Input type="number" min="1" step="0.1" value={aiParams.minLift}
+                  onChange={e => setAiParams(p => ({ ...p, minLift: parseFloat(e.target.value) || 1.5 }))} />
+                <p className="text-xs text-gray-500">Filters fluids/consumables (≥1.5 recommended)</p>
+              </div>
+              <div className="space-y-1">
                 <Label>Lookback (days)</Label>
                 <Input type="number" min="30" value={aiParams.lookbackDays}
                   onChange={e => setAiParams(p => ({ ...p, lookbackDays: parseInt(e.target.value) || 365 }))} />
                 <p className="text-xs text-gray-500">Days of history to analyze</p>
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Exclude Part Number Prefixes</Label>
+              <Input
+                placeholder="e.g. FLU, OIL, COOL, GREASE (comma-separated)"
+                value={aiParams.excludePrefixes}
+                onChange={e => setAiParams(p => ({ ...p, excludePrefixes: e.target.value }))}
+              />
+              <p className="text-xs text-gray-500">Parts whose numbers start with these prefixes will be excluded from AI analysis. Use this to filter out fluids, lubricants, and other consumables that create false associations.</p>
             </div>
             <div className="flex gap-2">
               <Button onClick={runAiDiscovery} disabled={aiDiscovering} className="bg-purple-600 hover:bg-purple-700 text-white">

@@ -366,24 +366,40 @@ def bulk_import_associations():
 def run_market_basket():
     """
     Analyze WOParts history to find parts that are frequently bought together.
-    Returns top co-occurrence pairs sorted by confidence score.
+    Returns top co-occurrence pairs sorted by lift score (filters out fluids/consumables
+    that appear together simply because they're on the same PM job).
     Query params:
       - min_support: minimum number of WOs both parts appear in together (default 3)
       - min_confidence: minimum confidence % (default 40)
+      - min_lift: minimum lift score (default 1.5 — filters coincidental co-purchases)
       - lookback_days: how many days of history to analyze (default 365)
+      - exclude_prefixes: comma-separated part number prefixes to exclude (e.g. "FLU,OIL,COOL")
     """
     try:
         db = _get_db()
         schema = get_tenant_schema()
         min_support = int(request.args.get('min_support', 3))
         min_confidence = float(request.args.get('min_confidence', 40))
+        min_lift = float(request.args.get('min_lift', 1.5))
         lookback_days = int(request.args.get('lookback_days', 365))
+        exclude_prefixes_raw = request.args.get('exclude_prefixes', '')
+
+        # Build exclusion clause for part number prefixes (e.g. fluids, lubricants)
+        exclude_clause = ''
+        exclude_list = [p.strip().upper() for p in exclude_prefixes_raw.split(',') if p.strip()]
+        if exclude_list:
+            conditions = ' AND '.join([f"wp.PartNo NOT LIKE '{pfx}%'" for pfx in exclude_list])
+            exclude_clause = f'AND {conditions}'
 
         # Market basket analysis using self-join on WOParts
         # For each pair (A, B) that appear on the same WO:
-        #   support = count of WOs where both A and B appear
+        #   support(A,B)     = WOs where both appear
         #   confidence(A->B) = support(A,B) / support(A)
-        #   confidence(B->A) = support(A,B) / support(B)
+        #   lift(A->B)       = confidence(A->B) / (support(B) / total_WOs)
+        #
+        # Lift > 1.0 means the pair appears together more than random chance.
+        # Lift > 1.5 filters out consumables/fluids that co-occur simply because
+        # they're all used on the same PM job type (they'd have lift ~1.0).
         query = f"""
         WITH RecentWOs AS (
             SELECT DISTINCT wp.WONo, wp.PartNo,
@@ -395,7 +411,11 @@ def run_market_basket():
               AND wp.PartNo IS NOT NULL
               AND wp.PartNo != ''
               AND w.DeletionTime IS NULL
+              {exclude_clause}
             GROUP BY wp.WONo, wp.PartNo
+        ),
+        TotalWOs AS (
+            SELECT COUNT(DISTINCT WONo) as total FROM RecentWOs
         ),
         PartFrequency AS (
             SELECT PartNo, Description, COUNT(DISTINCT WONo) as freq
@@ -422,24 +442,37 @@ def run_market_basket():
             p.co_occurrence as CoOccurrence,
             fa.freq as TriggerFreq,
             fb.freq as RecommendedFreq,
+            t.total as TotalWOs,
             CAST(p.co_occurrence AS FLOAT) / fa.freq * 100 as ConfidenceAtoB,
-            CAST(p.co_occurrence AS FLOAT) / fb.freq * 100 as ConfidenceBtoA
+            CAST(p.co_occurrence AS FLOAT) / fb.freq * 100 as ConfidenceBtoA,
+            -- Lift(A->B) = confidence(A->B) / (freq_B / total)
+            (CAST(p.co_occurrence AS FLOAT) / fa.freq) /
+                (CAST(fb.freq AS FLOAT) / t.total) as LiftAtoB,
+            -- Lift(B->A) = confidence(B->A) / (freq_A / total)
+            (CAST(p.co_occurrence AS FLOAT) / fb.freq) /
+                (CAST(fa.freq AS FLOAT) / t.total) as LiftBtoA
         FROM Pairs p
         INNER JOIN PartFrequency fa ON p.part_a = fa.PartNo
         INNER JOIN PartFrequency fb ON p.part_b = fb.PartNo
-        WHERE CAST(p.co_occurrence AS FLOAT) / fa.freq * 100 >= {min_confidence}
-           OR CAST(p.co_occurrence AS FLOAT) / fb.freq * 100 >= {min_confidence}
+        CROSS JOIN TotalWOs t
+        WHERE (
+            CAST(p.co_occurrence AS FLOAT) / fa.freq * 100 >= {min_confidence}
+            OR CAST(p.co_occurrence AS FLOAT) / fb.freq * 100 >= {min_confidence}
+        )
         ORDER BY p.co_occurrence DESC, ConfidenceAtoB DESC
         """
         results = db.execute_query(query)
 
-        # Expand each pair into two directional associations
+        # Expand each pair into two directional associations, applying lift filter
         associations = []
         for r in results:
             conf_a_to_b = float(r.get('ConfidenceAtoB', 0) or 0)
             conf_b_to_a = float(r.get('ConfidenceBtoA', 0) or 0)
+            lift_a_to_b = float(r.get('LiftAtoB', 0) or 0)
+            lift_b_to_a = float(r.get('LiftBtoA', 0) or 0)
             co = int(r.get('CoOccurrence', 0) or 0)
-            if conf_a_to_b >= min_confidence:
+
+            if conf_a_to_b >= min_confidence and lift_a_to_b >= min_lift:
                 associations.append({
                     'triggerPartNo': r['TriggerPartNo'],
                     'triggerDescription': r['TriggerDescription'] or '',
@@ -448,11 +481,12 @@ def run_market_basket():
                     'coOccurrence': co,
                     'triggerFreq': int(r.get('TriggerFreq', 0) or 0),
                     'confidence': round(conf_a_to_b, 1),
+                    'lift': round(lift_a_to_b, 2),
                     'source': 'ai_analysis',
                     'relationshipType': 'often_needed_together',
-                    'reason': f'Appeared together on {co} work orders ({round(conf_a_to_b, 1)}% of {r["TriggerPartNo"]} WOs also included {r["RecommendedPartNo"]})',
+                    'reason': f'Appeared together on {co} WOs ({round(conf_a_to_b, 1)}% confidence, {round(lift_a_to_b, 2)}x lift — {round(lift_a_to_b, 2)}x more likely than random chance)',
                 })
-            if conf_b_to_a >= min_confidence:
+            if conf_b_to_a >= min_confidence and lift_b_to_a >= min_lift:
                 associations.append({
                     'triggerPartNo': r['RecommendedPartNo'],
                     'triggerDescription': r['RecommendedDescription'] or '',
@@ -461,13 +495,14 @@ def run_market_basket():
                     'coOccurrence': co,
                     'triggerFreq': int(r.get('RecommendedFreq', 0) or 0),
                     'confidence': round(conf_b_to_a, 1),
+                    'lift': round(lift_b_to_a, 2),
                     'source': 'ai_analysis',
                     'relationshipType': 'often_needed_together',
-                    'reason': f'Appeared together on {co} work orders ({round(conf_b_to_a, 1)}% of {r["RecommendedPartNo"]} WOs also included {r["TriggerPartNo"]})',
+                    'reason': f'Appeared together on {co} WOs ({round(conf_b_to_a, 1)}% confidence, {round(lift_b_to_a, 2)}x lift — {round(lift_b_to_a, 2)}x more likely than random chance)',
                 })
 
-        # Sort by confidence descending
-        associations.sort(key=lambda x: x['confidence'], reverse=True)
+        # Sort by lift descending (highest quality associations first)
+        associations.sort(key=lambda x: x['lift'], reverse=True)
 
         return jsonify({
             'associations': associations,
@@ -475,7 +510,9 @@ def run_market_basket():
             'params': {
                 'minSupport': min_support,
                 'minConfidence': min_confidence,
+                'minLift': min_lift,
                 'lookbackDays': lookback_days,
+                'excludePrefixes': exclude_list,
             }
         }), 200
     except Exception as e:
