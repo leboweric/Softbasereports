@@ -385,15 +385,34 @@ class DashboardQueries:
                     if prior_total > 0:
                         prior_margin = round(((prior_total - prior_cost) / prior_total) * 100, 1)
 
+                # For the current in-progress month, use the day-of-month-limited
+                # prior-year figure instead of the full prior-year month total
+                is_current_month = (year == current_year and month == current_month)
+                if is_current_month and prior_year_partial:
+                    py_rev = prior_year_partial.get('revenue', 0)
+                    py_cost = prior_year_partial.get('cost', 0)
+                    py_margin = round(((py_rev - py_cost) / py_rev) * 100, 1) if py_rev > 0 else None
+                    prior_year_amount_display = py_rev
+                    prior_year_margin_display = py_margin
+                    prior_year_gm_display = py_rev - py_cost
+                    is_partial = True
+                else:
+                    prior_year_amount_display = prior_total
+                    prior_year_margin_display = prior_margin
+                    prior_year_gm_display = prior_gross_margin_dollars
+                    is_partial = False
+
                 monthly_sales.append({
                     'month': month_str,
                     'year': year,
                     'amount': total_revenue,
                     'margin': margin,
                     'gross_margin_dollars': gross_margin_dollars,
-                    'prior_year_amount': prior_total,
-                    'prior_year_margin': prior_margin,
-                    'prior_year_gross_margin_dollars': prior_gross_margin_dollars
+                    'prior_year_amount': prior_year_amount_display,
+                    'prior_year_margin': prior_year_margin_display,
+                    'prior_year_gross_margin_dollars': prior_year_gm_display,
+                    'prior_year_is_partial': is_partial,
+                    'prior_year_day_cutoff': today_day if is_partial else None,
                 })
 
             return monthly_sales

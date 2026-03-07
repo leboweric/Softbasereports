@@ -644,37 +644,38 @@ const Dashboard = ({ user }) => {
       payload.year === currentYear &&
       paceData
 
-    // Ghost bar for prior year - only for current month
+    // Ghost bar for prior year - ALL months
     const priorYearAmount = payload?.prior_year_amount || 0
+    const isPartialPY = payload?.prior_year_is_partial || false
     const currentAmount = payload?.amount || 0
     let ghostBarHeight = 0
     let ghostBarY = y + height
-    if (isCurrentMonth && priorYearAmount > 0 && currentAmount > 0 && height > 0) {
-      const ratio = priorYearAmount / currentAmount
-      ghostBarHeight = height * ratio
-      ghostBarY = y + height - ghostBarHeight
-    } else if (isCurrentMonth && priorYearAmount > 0 && background) {
-      ghostBarHeight = Math.min(background.height * 0.3, 50)
+    if (priorYearAmount > 0 && background && background.height > 0) {
+      // Calculate ghost bar height proportional to the chart scale
+      // Use background.height as the full-scale reference
+      const chartMax = background.height > 0 ? currentAmount / height * background.height : currentAmount
+      const ratio = priorYearAmount / (chartMax || 1)
+      ghostBarHeight = ratio * background.height
       ghostBarY = background.y + background.height - ghostBarHeight
     }
 
     return (
       <g>
-        {/* Ghost bar for prior year - current month only */}
-        {isCurrentMonth && priorYearAmount > 0 && ghostBarHeight > 0 && (
+        {/* Ghost bar for prior year - all months */}
+        {priorYearAmount > 0 && ghostBarHeight > 0 && (
           <rect
             x={x - 2}
             y={ghostBarY}
             width={width + 4}
             height={ghostBarHeight}
             fill={fill}
-            fillOpacity={0.12}
+            fillOpacity={isPartialPY ? 0.15 : 0.18}
             rx={4}
             ry={4}
             stroke={fill}
-            strokeOpacity={0.25}
+            strokeOpacity={isPartialPY ? 0.4 : 0.3}
             strokeWidth={1}
-            strokeDasharray="4 2"
+            strokeDasharray={isPartialPY ? "5 3" : "4 2"}
           />
         )}
         {/* Current year bar */}
@@ -1303,11 +1304,13 @@ const Dashboard = ({ user }) => {
 
                         // Use prior_year_amount for year-over-year comparison
                         const priorYearValue = monthData?.prior_year_amount || null
+                        const isPartial = monthData?.prior_year_is_partial || false
+                        const dayCutoff = monthData?.prior_year_day_cutoff || null
 
                         return (
                           <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
                             <p className="font-semibold mb-1">{label}</p>
-                            <p className="text-green-600">
+                            <p className="text-[#8884d8]">
                               Revenue: {formatCurrency(monthData?.amount || 0)}
                               {priorYearValue && priorYearValue > 0 && (
                                 <span className="text-sm ml-2">
@@ -1317,8 +1320,14 @@ const Dashboard = ({ user }) => {
                             </p>
                             {priorYearValue && priorYearValue > 0 && (
                               <p className="text-gray-400 text-sm">
-                                Prior Year: {formatCurrency(priorYearValue)}
+                                {isPartial
+                                  ? `Prior Year (thru day ${dayCutoff}): ${formatCurrency(priorYearValue)}`
+                                  : `Prior Year: ${formatCurrency(priorYearValue)}`
+                                }
                               </p>
+                            )}
+                            {!priorYearValue && (
+                              <p className="text-gray-300 text-xs italic">No prior-year data for this month</p>
                             )}
                             {monthData?.margin !== null && monthData?.margin !== undefined && (
                               <p className="text-blue-600">
@@ -1337,25 +1346,26 @@ const Dashboard = ({ user }) => {
                     }} />
                     <Legend content={({ payload }) => (
                       <div className="flex justify-center gap-4 mt-2 text-sm">
+                        {/* Manual Prior Year entry — ghost is rendered inside CustomBar */}
+                        <span className="flex items-center gap-1">
+                          <svg width="14" height="14"><rect width="14" height="14" fill="#8884d8" fillOpacity="0.18" stroke="#8884d8" strokeOpacity="0.35" strokeWidth="1" strokeDasharray="4 2" rx="2" /></svg>
+                          <span className="text-gray-600">Prior Year</span>
+                        </span>
                         {payload?.map((entry, index) => (
                           <span key={index} className="flex items-center gap-1">
-                            {entry.value === 'Prior Year' ? (
-                              <svg width="14" height="14"><rect width="14" height="14" fill="#8884d8" fillOpacity="0.15" stroke="#8884d8" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="3 2" rx="2" /></svg>
-                            ) : (
-                              <svg width="14" height="14">
-                                {entry.type === 'line' ? (
-                                  <line x1="0" y1="7" x2="14" y2="7" stroke={entry.color} strokeWidth="2" strokeDasharray={entry.value === 'Revenue Trend' ? '4 3' : '0'} />
-                                ) : (
-                                  <rect width="14" height="14" fill={entry.color} rx="2" />
-                                )}
-                              </svg>
-                            )}
+                            <svg width="14" height="14">
+                              {entry.type === 'line' ? (
+                                <line x1="0" y1="7" x2="14" y2="7" stroke={entry.color} strokeWidth="2" strokeDasharray={entry.value === 'Revenue Trend' ? '4 3' : '0'} />
+                              ) : (
+                                <rect width="14" height="14" fill={entry.color} rx="2" />
+                              )}
+                            </svg>
                             <span className="text-gray-600">{entry.value}</span>
                           </span>
                         ))}
                       </div>
                     )} />
-                    <Bar yAxisId="left" dataKey="amount" fill="#8884d8" name="Revenue" shape={<CustomBar />} />
+                    <Bar yAxisId="left" dataKey="amount" fill="#8884d8" name="Revenue" shape={<CustomBar />} background={{ fill: 'transparent' }} />
                     <Line
                       yAxisId="right"
                       type="monotone"
