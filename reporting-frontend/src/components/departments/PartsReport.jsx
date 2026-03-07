@@ -25,7 +25,7 @@ import {
   ComposedChart,
   Legend
 } from 'recharts'
-import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info, Zap, Turtle, Download, Target, RotateCcw, DollarSign, ChevronRight, Archive, CircleCheck } from 'lucide-react'
+import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info, Zap, Turtle, Download, Target, RotateCcw, DollarSign, ChevronRight, ChevronDown, Archive, CircleCheck } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import {
   Tooltip,
@@ -34,6 +34,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -633,13 +639,103 @@ const PartsReport = ({ user, organization, onNavigate }) => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList>
-          {tabs.map(tab => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        {/* Grouped dropdown navigation */}
+        <div className="flex items-center gap-2 border-b pb-2">
+          {/* Operations Group */}
+          {['overview', 'work-orders'].some(id => tabs.some(t => t.value === id)) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={['overview', 'work-orders'].includes(activeTab) ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex items-center gap-1"
+                >
+                  Operations <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {['overview', 'work-orders'].map(id => {
+                  const tab = tabs.find(t => t.value === id)
+                  if (!tab) return null
+                  return (
+                    <DropdownMenuItem
+                      key={tab.value}
+                      onSelect={() => setActiveTab(tab.value)}
+                      className={activeTab === tab.value ? 'bg-accent font-medium' : ''}
+                    >
+                      {tab.label}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Inventory Management Group */}
+          {['stock-alerts', 'inventory-location', 'inventory-turns', 'velocity', 'forecast'].some(id => tabs.some(t => t.value === id)) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={['stock-alerts', 'inventory-location', 'inventory-turns', 'velocity', 'forecast'].includes(activeTab) ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex items-center gap-1"
+                >
+                  Inventory Management <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {['stock-alerts', 'inventory-location', 'inventory-turns', 'velocity', 'forecast'].map(id => {
+                  const tab = tabs.find(t => t.value === id)
+                  if (!tab) return null
+                  return (
+                    <DropdownMenuItem
+                      key={tab.value}
+                      onSelect={() => setActiveTab(tab.value)}
+                      className={activeTab === tab.value ? 'bg-accent font-medium' : ''}
+                    >
+                      {tab.label}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Financial Performance Group */}
+          {['sold-by-customer', 'employee-performance'].some(id => tabs.some(t => t.value === id)) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={['sold-by-customer', 'employee-performance'].includes(activeTab) ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex items-center gap-1"
+                >
+                  Financial Performance <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {['sold-by-customer', 'employee-performance'].map(id => {
+                  const tab = tabs.find(t => t.value === id)
+                  if (!tab) return null
+                  return (
+                    <DropdownMenuItem
+                      key={tab.value}
+                      onSelect={() => setActiveTab(tab.value)}
+                      className={activeTab === tab.value ? 'bg-accent font-medium' : ''}
+                    >
+                      {tab.label}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Active tab breadcrumb */}
+          <span className="ml-2 text-sm text-muted-foreground">
+            {tabs.find(t => t.value === activeTab)?.label || ''}
+          </span>
+        </div>
 
         {tabs.some(tab => tab.value === 'overview') && (
           <TabsContent value="overview" className="space-y-6">
