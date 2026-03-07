@@ -708,7 +708,59 @@
       "lessons_learned": "GOLDEN RULE for Azure SQL aggregation: STRING_AGG does NOT support DISTINCT. Always wrap in a subquery: SELECT STRING_AGG(x, ', ') WITHIN GROUP (ORDER BY x) FROM (SELECT DISTINCT x FROM table WHERE ...) AS d"
     }
   ],
-  "total_entries": 49,
+  "total_entries": 52,
+  "session_2026_03_07":
+  [
+    {
+      "ticket_id": "MANUAL-010",
+      "type": "bug",
+      "component": "User Creation / admin.py + Multi-Tenancy",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Pat Rudawsky (IPS user) was created in Bennett's org (org 4) instead of IPS org (org 7), causing them to see Bennett data and Bennett's Report Visibility settings.",
+      "root_cause": "The admin create_user endpoint always assigned new users to current_user.organization_id. The support bot (aiop-support-bot) lives in org 4 (Bennett). When it created Pat's account for IPS, the account was silently placed in Bennett's org. Pat then saw Bennett data and had the Bennett Parts Manager role (ID=4) instead of the IPS Parts Manager role (ID=22).",
+      "solution": "(1) Fixed Pat directly in PostgreSQL: updated organization_id from 4 to 7, removed Bennett Parts Manager role (ID=4), added IPS Parts Manager role (ID=22). (2) Modified admin.py create_user endpoint to allow Super Admins to pass an optional organization_id in the request body to create users in a target org. Regular admins still use their own org (isolation preserved).",
+      "files_modified": [
+        "reporting-backend/src/routes/admin.py"
+      ],
+      "db_fix_applied": "UPDATE user SET organization_id=7 WHERE id=58; DELETE FROM user_roles WHERE user_id=58 AND role_id=4; INSERT INTO user_roles (user_id, role_id) VALUES (58, 22);",
+      "multi_tenant_impact": "CRITICAL — any user created by the support bot was being placed in Bennett's org. Super Admin override now allows cross-org user creation.",
+      "testing_passed": true,
+      "date_fixed": "2026-03-07",
+      "commit": "7faa9956",
+      "lessons_learned": "CRITICAL MULTI-TENANT RULE: The support bot (aiop-support-bot) lives in org 4 (Bennett). When creating users for other orgs, the create_user endpoint MUST receive an explicit organization_id in the request body. Always verify a new user's organization_id and role org after creation. The role assigned must belong to the target org — each org has its own copy of each role with a different ID. Bennett Parts Manager = role ID 4, IPS Parts Manager = role ID 22."
+    },
+    {
+      "ticket_id": "MANUAL-011",
+      "type": "bug",
+      "component": "Report Visibility / Multi-Tenancy",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Parts Overview tab was visible to Pat Rudawsky (IPS Parts Manager) even though the IPS admin had toggled it off in Report Visibility.",
+      "root_cause": "Not a code bug — this was a consequence of MANUAL-010. Pat was in Bennett's org (org 4), where parts/overview is visible=True. IPS (org 7) has parts/overview set to visible=False in the report_visibility table. Once Pat was moved to org 7, the visibility setting worked correctly.",
+      "solution": "Fixed by resolving MANUAL-010 (moving Pat to IPS org). The permission_service.py visibility logic was already correct: it reads report_visibility for user.organization_id and hides tabs where is_visible=False.",
+      "files_modified": [],
+      "multi_tenant_impact": "Report Visibility is per-org and works correctly. The issue was the user being in the wrong org.",
+      "testing_passed": true,
+      "date_fixed": "2026-03-07",
+      "lessons_learned": "When a user reports that Report Visibility toggles are not working, first verify the user is in the correct organization. Report Visibility settings are stored per organization_id in the report_visibility table. A user in the wrong org will see that org's visibility settings, not their intended org's settings."
+    },
+    {
+      "ticket_id": "MANUAL-012",
+      "type": "bug",
+      "component": "Parts Sold by Customer / column_mappings.py",
+      "organization": "Bennett (ben002)",
+      "issue_summary": "Parts Sold by Customer report failing on Bennett with SQL error: Invalid column name 'CustNo'.",
+      "root_cause": "column_mappings.py DEFAULT_COLUMNS (Bennett schema) had Customer.cust_no mapped to 'CustNo'. But Bennett's actual Customer table uses 'Number' as the customer number column — the same as IPS. The get_parts_sold_by_customer query called get_column(schema, 'Customer', 'cust_no') which returned 'CustNo', causing the LEFT JOIN Customer c ON ir.BillTo = c.CustNo to fail. All other queries in department_reports.py already used c.Number directly or had 'or Number' as a fallback, masking this bug everywhere else.",
+      "solution": "Fixed column_mappings.py DEFAULT_COLUMNS: changed Customer.cust_no from 'CustNo' to 'Number'. This aligns with every other Bennett Customer join in the codebase.",
+      "files_modified": [
+        "reporting-backend/src/config/column_mappings.py"
+      ],
+      "multi_tenant_impact": "Only affects Bennett (ben002) — IPS already had 'Number' in IPS_COLUMNS. Fix is safe: all other callers of get_column(schema, 'Customer', 'cust_no') already had 'or Number' fallback.",
+      "testing_passed": true,
+      "date_fixed": "2026-03-07",
+      "commit": "b7325ca3",
+      "lessons_learned": "CRITICAL: Bennett's Customer table uses 'Number' as the customer number column (NOT 'CustNo'). The column_mappings.py DEFAULT_COLUMNS had this wrong. When adding new queries that join the Customer table for Bennett, always use c.Number. The correct column mapping is: Bennett Customer.cust_no = 'Number', IPS Customer.cust_no = 'Number' (both use 'Number'). The InvoiceReg.CustNo column DOES exist in Bennett's InvoiceReg table — the confusion was between InvoiceReg.CustNo (exists) and Customer.CustNo (does NOT exist, use Customer.Number instead)."
+    }
+  ],
   "session_2026_03_05_evening": [
     {
       "ticket_id": "BIZ-RULE-001",

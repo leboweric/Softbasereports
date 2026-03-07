@@ -400,6 +400,59 @@ This section tracks architectural incidents — bugs that were caused by violati
 | 2026-03-04 | Maintenance Contract no data for IPS | Rule 1 (Hardcoded SaleCodes) | Empty report for IPS | TKT-2026-0021 |
 | 2026-03-04 | Cash Burn wrong billable rate | Rule 7 (Effective Rate) | Incorrect dollar values | TKT-2026-0023 |
 | 2026-03-04 | WO counts showing total not open | Rule 5 (WO Status Filtering) | 6,355 shown instead of 537 | TKT-2026-0026 |
+| 2026-03-07 | Pat Rudawsky (IPS) saw Bennett data | Rule 11 (User Org Assignment) | Wrong org, wrong data, wrong visibility | MANUAL-010 |
+| 2026-03-07 | Parts Sold by Customer 'Invalid column name CustNo' | Rule 12 (column_mappings correctness) | Report failed for Bennett | MANUAL-012 |
+
+---
+
+### Rule 11: Always Verify User Org and Role Org When Creating Users
+
+**Incident History**: MANUAL-010 (Pat Rudawsky created in Bennett's org instead of IPS)
+
+**The Problem**: The `create_user` admin endpoint assigns new users to `current_user.organization_id`. The support bot (`aiop-support-bot`) lives in **org 4 (Bennett)**. Any user it creates without an explicit `organization_id` override ends up in Bennett's org — seeing Bennett data, Bennett Report Visibility settings, and assigned Bennett roles.
+
+**The Rule**: When creating users for a non-Bennett org via the support bot or any Super Admin account:
+1. Always pass `organization_id` explicitly in the create_user request body
+2. Always assign a role that belongs to the **target org** — roles are org-scoped and have different IDs per org
+3. Verify after creation: `SELECT u.organization_id, o.name, r.name, r.organization_id FROM user u JOIN organization o ON u.organization_id=o.id JOIN user_roles ur ON ur.user_id=u.id JOIN role r ON r.id=ur.role_id WHERE u.id=<new_user_id>`
+
+**Known Role IDs**:
+
+| Role | Bennett (org 4) | IPS (org 7) |
+|------|----------------|-------------|
+| Parts Manager | 4 | 22 |
+| Sales Manager | 3 | 32 |
+| Service Manager | 2 | 21 |
+| Admin | 1 | 20 |
+
+**Diagnostic**: If a user reports seeing another org's data, immediately check their `organization_id` in PostgreSQL:
+```sql
+SELECT u.id, u.email, u.organization_id, o.name 
+FROM "user" u JOIN organization o ON u.organization_id = o.id 
+WHERE u.email = '<email>';
+```
+
+---
+
+### Rule 12: column_mappings.py Must Reflect Actual Database Column Names
+
+**Incident History**: MANUAL-012 (Parts Sold by Customer 'Invalid column name CustNo' on Bennett)
+
+**The Problem**: `column_mappings.py` DEFAULT_COLUMNS (Bennett) had `Customer.cust_no` mapped to `'CustNo'`. But Bennett's actual Customer table uses `'Number'` as the customer number column. This caused the `get_parts_sold_by_customer` query to fail with `Invalid column name 'CustNo'`. The bug was masked in all other queries because they used `get_column() or 'Number'` fallback, which silently used the correct column name.
+
+**The Rule**: The `column_mappings.py` DEFAULT_COLUMNS must reflect the **actual column names** in the database. Never assume a column name without verifying against the real schema.
+
+**Known Correct Mappings**:
+
+| Table | Column | Bennett (`ben002`) | IPS (`ind004`) |
+|-------|--------|-------------------|----------------|
+| Customer | cust_no (customer number) | `Number` | `Number` |
+| InvoiceReg | cust_no | `CustNo` | `CustNo` |
+| GLDetail | date column | `EffectiveDate` | `EffectiveDate` |
+
+**Important Distinction**: `InvoiceReg.CustNo` EXISTS in Bennett (it's the customer number on the invoice). `Customer.CustNo` does NOT exist — the Customer table uses `Number`. These are different tables with different column names for the same concept.
+
+**Verification**: When adding a new `get_column()` call, always cross-check against working queries in the codebase that join the same table. If every working query uses `c.Number` for Customer joins, the mapping should be `'Number'`, not `'CustNo'`.
 
 ---
 
