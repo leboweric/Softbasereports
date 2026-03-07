@@ -12475,3 +12475,233 @@ def register_department_routes(reports_bp):
         except Exception as e:
             logger.error(f"Error in service sold by customer: {str(e)}", exc_info=True)
             return jsonify({'error': str(e), 'type': 'service_sold_by_customer_error'}), 500
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # TECHNICIAN PRODUCTIVITY
+    # Three Currie metrics: Application, Efficiency, Productivity
+    # ─────────────────────────────────────────────────────────────────────────────
+    @reports_bp.route('/departments/service/technician-productivity', methods=['GET'])
+    @jwt_required()
+    def get_technician_productivity():
+        """
+        Technician Productivity report — three Currie metrics per technician.
+
+        Application  = Applied Hours  / Hours Paid
+        Efficiency   = Hours Billed   / Applied Hours
+        Productivity = Hours Billed   / Hours Paid   (= Application × Efficiency)
+
+        Hours Paid:   40 hrs/week × number of weeks in the selected period (default).
+                      Overridable per-tech via org settings (future).
+        Applied Hours: SUM(WOLabor.Hours) for all WO labor lines in the period
+                       where the WO belongs to a service department.
+        Hours Billed:  SUM(WOLabor.Hours) where WOLabor.Sell > 0 — i.e., hours that
+                       generated billable revenue. Internal / warranty / goodwill lines
+                       where Sell = 0 count as Applied but NOT Billed.
+
+        Currie targets: Application ≥ 85%, Efficiency ≥ 100%, Productivity ≥ 85%.
+        """
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        schema = get_tenant_schema()
+        cache_key = f'tech_productivity_{schema}'
+
+        start_date = request.args.get('start_date')
+        end_date   = request.args.get('end_date')
+
+        today = datetime.now()
+        if not start_date:
+            start_date = datetime(today.year, 1, 1).strftime('%Y-%m-%d')
+        if not end_date:
+            end_date = today.strftime('%Y-%m-%d')
+
+        # Append date range to cache key so different ranges are cached separately
+        cache_key = f'tech_productivity_{schema}_{start_date}_{end_date}'
+
+        if not force_refresh:
+            cached = cache.get(cache_key)
+            if cached:
+                return jsonify(cached)
+
+        try:
+            db = get_db_for_schema(schema)
+
+            # ── Step 1: Resolve service department codes ──────────────────────
+            dept_query = f"SELECT Dept, Title FROM {schema}.Dept ORDER BY Dept"
+            dept_rows = db.execute_query(dept_query)
+            service_keywords = ['service', 'field', 'shop', 'pm', 'preventive',
+                                 'maintenance', 'repair', 'warranty']
+            exclude_keywords = ['rental', 'equipment', 'parts', 'sale', 'allied',
+                                 'new ', 'used ']
+            service_dept_numbers = set()
+            for row in dept_rows:
+                dept_no = row.get('Dept')
+                title   = (row.get('Title') or '').strip().lower()
+                if dept_no is None or not title:
+                    continue
+                is_service  = any(kw in title for kw in service_keywords)
+                is_excluded = any(kw in title for kw in exclude_keywords)
+                if is_service and not is_excluded:
+                    service_dept_numbers.add(int(dept_no))
+            service_dept_numbers = sorted(service_dept_numbers)
+
+            if not service_dept_numbers:
+                return jsonify({
+                    'technicians': [],
+                    'department': {},
+                    'startDate': start_date,
+                    'endDate': end_date,
+                    'weeksPeriod': 0,
+                    'hoursPaidPerWeek': 40,
+                    'serviceDepts': [],
+                    'currieTargets': {'application': 85, 'efficiency': 100, 'productivity': 85},
+                })
+
+            dept_placeholders = ', '.join(['%s'] * len(service_dept_numbers))
+
+            # ── Step 2: Calculate weeks in the period ─────────────────────────
+            from datetime import datetime as dt, timedelta
+            d1 = dt.strptime(start_date, '%Y-%m-%d')
+            d2 = dt.strptime(end_date,   '%Y-%m-%d')
+            days_in_period = max((d2 - d1).days + 1, 1)
+            weeks_in_period = days_in_period / 7.0
+            hours_paid_per_week = 40
+            hours_paid_per_tech = round(hours_paid_per_week * weeks_in_period, 2)
+
+            # ── Step 3: Per-technician Applied and Billed hours ───────────────
+            # Applied Hours = all WOLabor.Hours on service WOs in the period
+            # Billed Hours  = WOLabor.Hours where Sell > 0 (generated revenue)
+            # We join WOLabor → WO to filter by service dept and date range.
+            # Date filter uses WO.ClosedDate (when the WO was invoiced/closed).
+            # Fall back to WO.CompletedDate if ClosedDate is null.
+            query = f"""
+            WITH ServiceWOs AS (
+                -- Work orders belonging to service departments, closed in the period
+                SELECT w.WONo
+                FROM {schema}.WO w
+                WHERE w.DeletionTime IS NULL
+                  AND w.Dept IN ({dept_placeholders})
+                  AND (
+                      (w.ClosedDate IS NOT NULL AND w.ClosedDate >= %s AND w.ClosedDate <= %s)
+                   OR (w.ClosedDate IS NULL AND w.CompletedDate IS NOT NULL
+                       AND w.CompletedDate >= %s AND w.CompletedDate <= %s)
+                  )
+            ),
+            LaborLines AS (
+                SELECT
+                    l.MechanicName,
+                    l.Hours,
+                    l.Sell,
+                    l.Cost
+                FROM {schema}.WOLabor l
+                INNER JOIN ServiceWOs s ON l.WONo = s.WONo
+                WHERE l.MechanicName IS NOT NULL
+                  AND l.MechanicName != ''
+                  AND l.Hours > 0
+            )
+            SELECT
+                MechanicName                                    AS TechName,
+                SUM(Hours)                                      AS AppliedHours,
+                SUM(CASE WHEN Sell > 0 THEN Hours ELSE 0 END)  AS BilledHours,
+                SUM(CASE WHEN Sell = 0 THEN Hours ELSE 0 END)  AS UnbilledHours,
+                SUM(Cost)                                       AS TotalCost,
+                SUM(Sell)                                       AS TotalSell,
+                COUNT(*)                                        AS LaborLineCount
+            FROM LaborLines
+            GROUP BY MechanicName
+            ORDER BY SUM(Hours) DESC
+            """
+
+            params = service_dept_numbers + [start_date, end_date, start_date, end_date]
+            rows = db.execute_query(query, params)
+
+            # ── Step 4: Build per-technician result ───────────────────────────
+            CURRIE_APPLICATION  = 85.0
+            CURRIE_EFFICIENCY   = 100.0
+            CURRIE_PRODUCTIVITY = 85.0
+
+            technicians = []
+            dept_applied  = 0.0
+            dept_billed   = 0.0
+            dept_cost     = 0.0
+            dept_sell     = 0.0
+
+            for row in (rows or []):
+                tech_name     = row.get('TechName', 'Unknown')
+                applied_hrs   = float(row.get('AppliedHours', 0) or 0)
+                billed_hrs    = float(row.get('BilledHours',  0) or 0)
+                unbilled_hrs  = float(row.get('UnbilledHours',0) or 0)
+                total_cost    = float(row.get('TotalCost',    0) or 0)
+                total_sell    = float(row.get('TotalSell',    0) or 0)
+                line_count    = int(row.get('LaborLineCount', 0) or 0)
+
+                application  = round(applied_hrs  / hours_paid_per_tech * 100, 1) if hours_paid_per_tech > 0 else None
+                efficiency   = round(billed_hrs   / applied_hrs         * 100, 1) if applied_hrs  > 0 else None
+                productivity = round(billed_hrs   / hours_paid_per_tech * 100, 1) if hours_paid_per_tech > 0 else None
+
+                technicians.append({
+                    'techName':         tech_name,
+                    'hoursPaid':        round(hours_paid_per_tech, 1),
+                    'appliedHours':     round(applied_hrs,  1),
+                    'billedHours':      round(billed_hrs,   1),
+                    'unbilledHours':    round(unbilled_hrs, 1),
+                    'application':      application,
+                    'efficiency':       efficiency,
+                    'productivity':     productivity,
+                    'totalCost':        round(total_cost, 2),
+                    'totalSell':        round(total_sell, 2),
+                    'laborLineCount':   line_count,
+                    # Status flags for UI color coding
+                    'applicationOk':    (application  is not None and application  >= CURRIE_APPLICATION),
+                    'efficiencyOk':     (efficiency   is not None and efficiency   >= CURRIE_EFFICIENCY),
+                    'productivityOk':   (productivity is not None and productivity >= CURRIE_PRODUCTIVITY),
+                })
+
+                dept_applied += applied_hrs
+                dept_billed  += billed_hrs
+                dept_cost    += total_cost
+                dept_sell    += total_sell
+
+            # ── Step 5: Department aggregate ─────────────────────────────────
+            total_techs          = len(technicians)
+            dept_hours_paid      = round(hours_paid_per_tech * total_techs, 1)
+            dept_application     = round(dept_applied / dept_hours_paid * 100, 1) if dept_hours_paid > 0 else None
+            dept_efficiency      = round(dept_billed  / dept_applied    * 100, 1) if dept_applied  > 0 else None
+            dept_productivity    = round(dept_billed  / dept_hours_paid * 100, 1) if dept_hours_paid > 0 else None
+
+            department = {
+                'techCount':      total_techs,
+                'hoursPaid':      dept_hours_paid,
+                'appliedHours':   round(dept_applied, 1),
+                'billedHours':    round(dept_billed,  1),
+                'unbilledHours':  round(dept_applied - dept_billed, 1),
+                'application':    dept_application,
+                'efficiency':     dept_efficiency,
+                'productivity':   dept_productivity,
+                'totalCost':      round(dept_cost, 2),
+                'totalSell':      round(dept_sell, 2),
+                'applicationOk':  (dept_application  is not None and dept_application  >= CURRIE_APPLICATION),
+                'efficiencyOk':   (dept_efficiency   is not None and dept_efficiency   >= CURRIE_EFFICIENCY),
+                'productivityOk': (dept_productivity is not None and dept_productivity >= CURRIE_PRODUCTIVITY),
+            }
+
+            result = {
+                'technicians':      technicians,
+                'department':       department,
+                'startDate':        start_date,
+                'endDate':          end_date,
+                'weeksPeriod':      round(weeks_in_period, 1),
+                'hoursPaidPerWeek': hours_paid_per_week,
+                'serviceDepts':     service_dept_numbers,
+                'currieTargets': {
+                    'application':  CURRIE_APPLICATION,
+                    'efficiency':   CURRIE_EFFICIENCY,
+                    'productivity': CURRIE_PRODUCTIVITY,
+                },
+            }
+
+            cache.set(cache_key, result, timeout=3600)
+            return jsonify(result)
+
+        except Exception as e:
+            logger.error(f"Error in technician productivity: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e), 'type': 'technician_productivity_error'}), 500
+

@@ -64,6 +64,7 @@ REPORT_REGISTRY = {
             'units-repair-cost': {'label': 'Units by Repair Cost'},
             'cost-per-hour': {'label': 'Cost per Hour'},
             'sold-by-customer': {'label': 'Service Sold by Customer'},
+            'tech-productivity': {'label': 'Technician Productivity'},
         }
     },
     'rental': {

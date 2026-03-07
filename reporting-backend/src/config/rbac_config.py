@@ -276,6 +276,7 @@ NAVIGATION_CONFIG = {
             'maintenance-contracts': {'label': 'Maintenance Contract Profitability', 'resource': 'service_overview'},
             'units-repair-cost': {'label': 'Units by Repair Cost', 'resource': 'service_overview'},
             'pm-contest': {'label': 'PM Contest', 'resource': 'service_overview'},
+            'tech-productivity': {'label': 'Technician Productivity', 'resource': 'service_overview'},
         }
     },
     'rental': {

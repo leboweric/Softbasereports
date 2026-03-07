@@ -59,6 +59,7 @@ import CustomerProfitability from '../CustomerProfitability'
 import UnitsRepairCost from '../UnitsRepairCost'
 import CostPerHour from '../CostPerHour'
 import ServiceSoldByCustomer from './ServiceSoldByCustomer'
+import TechnicianProductivity from './TechnicianProductivity'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
 import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 import { MethodologyPanel } from '@/components/ui/methodology-panel'
@@ -125,14 +126,14 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
 const ServiceReport = ({ user, organization, onNavigate }) => {
   // Build accessible tabs from visibility settings
   const accessibleTabs = getAccessibleTabs(user, 'service')
-  const tabOrder = ['overview', 'all-work-orders', 'work-orders', 'pms', 'pm-route-planner', 'shop-work-orders', 'cost-per-hour', 'invoice-billing', 'customer-profitability', 'sold-by-customer', 'maintenance-contracts', 'units-repair-cost', 'pm-contest']
+  const tabOrder = ['overview', 'all-work-orders', 'work-orders', 'pms', 'pm-route-planner', 'shop-work-orders', 'cost-per-hour', 'invoice-billing', 'customer-profitability', 'sold-by-customer', 'maintenance-contracts', 'units-repair-cost', 'pm-contest', 'tech-productivity']
   const tabLabels = {
     'overview': 'Overview', 'pms': "PM's", 'pm-route-planner': 'PM Route Planner',
     'pm-contest': 'PM Contest', 'shop-work-orders': 'Cash Burn', 'work-orders': 'Cash Stalled',
     'all-work-orders': 'All Work Orders', 'invoice-billing': 'Customer Billing',
     'maintenance-contracts': 'Maintenance Contract Profitability', 'customer-profitability': 'Customer Profitability',
     'units-repair-cost': 'Units by Repair Cost', 'cost-per-hour': 'Cost per Hour',
-    'sold-by-customer': 'Service Sold by Customer'
+    'sold-by-customer': 'Service Sold by Customer', 'tech-productivity': 'Technician Productivity'
   }
   const tabs = tabOrder
     .filter(id => accessibleTabs[id])
@@ -688,11 +689,11 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
           )}
 
           {/* Analysis Group */}
-          {['units-repair-cost', 'pm-contest'].some(id => tabs.some(t => t.value === id)) && (
+          {['units-repair-cost', 'pm-contest', 'tech-productivity'].some(id => tabs.some(t => t.value === id)) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
-                  variant={['units-repair-cost', 'pm-contest'].includes(activeTab) ? 'default' : 'outline'}
+                  variant={['units-repair-cost', 'pm-contest', 'tech-productivity'].includes(activeTab) ? 'default' : 'outline'}
                   size="sm"
                   className="flex items-center gap-1"
                 >
@@ -700,7 +701,7 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                {['units-repair-cost', 'pm-contest'].map(id => {
+                {['units-repair-cost', 'pm-contest', 'tech-productivity'].map(id => {
                   const tab = tabs.find(t => t.value === id)
                   if (!tab) return null
                   return (
@@ -2071,6 +2072,11 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
         {tabs.some(tab => tab.value === 'sold-by-customer') && (
         <TabsContent value="sold-by-customer" className="space-y-6">
           <ServiceSoldByCustomer user={user} />
+        </TabsContent>
+        )}
+        {tabs.some(tab => tab.value === 'tech-productivity') && (
+        <TabsContent value="tech-productivity" className="space-y-6">
+          <TechnicianProductivity user={user} />
         </TabsContent>
         )}
       </Tabs>
