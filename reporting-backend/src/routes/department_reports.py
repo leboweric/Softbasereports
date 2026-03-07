@@ -12074,6 +12074,9 @@ def register_department_routes(reports_bp):
                     AND ir.SaleDept = 50
                     AND ir.SaleCode IN ('C1', 'C2')
                     AND ISNULL(wp.Qty, 0) != 0
+                    -- Exclude IPS internal accounts (IPS/IPC prefix = internal cost centers)
+                    AND ir.BillTo NOT LIKE 'IPS%'
+                    AND ir.BillTo NOT LIKE 'IPC%'
                     {cust_where}
                 ORDER BY ir.BillToName, ir.InvoiceDate, ir.InvoiceNo, wp.PartNo
                 """
@@ -12109,6 +12112,8 @@ def register_department_routes(reports_bp):
                 WHERE {date_filter}
                     AND (ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0)) != 0
                     AND ISNULL(wp.Qty, 0) != 0
+                    -- Exclude Bennett internal accounts (900xxx series = internal cost centers)
+                    AND ir.BillTo NOT LIKE '900%'
                     {cust_where}
                 ORDER BY CustomerName, ir.InvoiceDate, ir.InvoiceNo, wp.PartNo
                 """
@@ -12332,6 +12337,10 @@ def register_department_routes(reports_bp):
                   AND ir.SaleDept IN ({dept_placeholders})
                   AND ir.DeletionTime IS NULL
                   AND (ISNULL(ir.LaborTaxable, 0) + ISNULL(ir.LaborNonTax, 0)) > 0
+                  -- Exclude internal accounts: Bennett 900xxx series, IPS IPS/IPC prefix
+                  AND ir.BillTo NOT LIKE '900%'
+                  AND ir.BillTo NOT LIKE 'IPS%'
+                  AND ir.BillTo NOT LIKE 'IPC%'
                   {cust_filter_sql}
                   {excl_sql}
             ),
