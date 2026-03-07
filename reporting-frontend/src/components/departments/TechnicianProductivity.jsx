@@ -68,7 +68,7 @@ const TechnicianProductivity = ({ user }) => {
     try {
       const token = localStorage.getItem('token')
       const url = apiUrl(
-        `/departments/service/technician-productivity?start_date=${startDate}&end_date=${endDate}${forceRefresh ? '&refresh=true' : ''}`
+        `/api/reports/departments/service/technician-productivity?start_date=${startDate}&end_date=${endDate}${forceRefresh ? '&refresh=true' : ''}`
       )
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       if (!res.ok) throw new Error(`Server error ${res.status}`)
