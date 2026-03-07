@@ -12604,11 +12604,12 @@ def register_department_routes(reports_bp):
             CURRIE_EFFICIENCY   = 100.0
             CURRIE_PRODUCTIVITY = 85.0
 
-            technicians  = []
-            dept_applied = 0.0
-            dept_billed  = 0.0
-            dept_cost    = 0.0
-            dept_sell    = 0.0
+            technicians    = []
+            dept_applied   = 0.0
+            dept_billed    = 0.0
+            dept_unbilled  = 0.0
+            dept_cost      = 0.0
+            dept_sell      = 0.0
 
             for row in (rows or []):
                 tech_name    = row.get('TechName', 'Unknown')
@@ -12639,10 +12640,11 @@ def register_department_routes(reports_bp):
                     'efficiencyOk':   (efficiency   is not None and efficiency   >= CURRIE_EFFICIENCY),
                     'productivityOk': (productivity is not None and productivity >= CURRIE_PRODUCTIVITY),
                 })
-                dept_applied += applied_hrs
-                dept_billed  += billed_hrs
-                dept_cost    += total_cost
-                dept_sell    += total_sell
+                dept_applied   += applied_hrs
+                dept_billed    += billed_hrs
+                dept_unbilled  += unbilled_hrs
+                dept_cost      += total_cost
+                dept_sell      += total_sell
 
             # ── Step 5: Department aggregate ─────────────────────────────────
             total_techs       = len(technicians)
@@ -12656,7 +12658,7 @@ def register_department_routes(reports_bp):
                 'hoursPaid':      dept_hours_paid,
                 'appliedHours':   round(dept_applied, 1),
                 'billedHours':    round(dept_billed,  1),
-                'unbilledHours':  round(dept_applied - dept_billed, 1),
+                'unbilledHours':  round(dept_unbilled, 1),
                 'application':    dept_application,
                 'efficiency':     dept_efficiency,
                 'productivity':   dept_productivity,
