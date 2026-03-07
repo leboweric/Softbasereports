@@ -12578,7 +12578,7 @@ def register_department_routes(reports_bp):
                 SELECT w.WONo
                 FROM {schema}.WO w
                 WHERE w.DeletionTime IS NULL
-                  AND w.Dept IN ({dept_placeholders})
+                  AND w.SaleDept IN ({dept_placeholders})
                   AND (
                       (w.ClosedDate IS NOT NULL AND w.ClosedDate >= %s AND w.ClosedDate <= %s)
                    OR (w.ClosedDate IS NULL AND w.CompletedDate IS NOT NULL
