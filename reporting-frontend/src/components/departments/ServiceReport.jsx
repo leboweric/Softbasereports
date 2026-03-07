@@ -52,6 +52,7 @@ import MaintenanceContractProfitability from '../MaintenanceContractProfitabilit
 import CustomerProfitability from '../CustomerProfitability'
 import UnitsRepairCost from '../UnitsRepairCost'
 import CostPerHour from '../CostPerHour'
+import ServiceSoldByCustomer from './ServiceSoldByCustomer'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
 import { MethodologyPanel } from '@/components/ui/methodology-panel'
 import { SERVICE_METHODOLOGY } from '@/config/ipsPageMethodology'
@@ -117,13 +118,14 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
 const ServiceReport = ({ user, organization, onNavigate }) => {
   // Build accessible tabs from visibility settings
   const accessibleTabs = getAccessibleTabs(user, 'service')
-  const tabOrder = ['overview', 'pms', 'pm-route-planner', 'pm-contest', 'shop-work-orders', 'work-orders', 'all-work-orders', 'invoice-billing', 'maintenance-contracts', 'customer-profitability', 'units-repair-cost', 'cost-per-hour']
+  const tabOrder = ['overview', 'pms', 'pm-route-planner', 'pm-contest', 'shop-work-orders', 'work-orders', 'all-work-orders', 'invoice-billing', 'maintenance-contracts', 'customer-profitability', 'units-repair-cost', 'cost-per-hour', 'sold-by-customer']
   const tabLabels = {
     'overview': 'Overview', 'pms': "PM's", 'pm-route-planner': 'PM Route Planner',
     'pm-contest': 'PM Contest', 'shop-work-orders': 'Cash Burn', 'work-orders': 'Cash Stalled',
     'all-work-orders': 'All Work Orders', 'invoice-billing': 'Customer Billing',
     'maintenance-contracts': 'Maintenance Contract Profitability', 'customer-profitability': 'Customer Profitability',
-    'units-repair-cost': 'Units by Repair Cost', 'cost-per-hour': 'Cost per Hour'
+    'units-repair-cost': 'Units by Repair Cost', 'cost-per-hour': 'Cost per Hour',
+    'sold-by-customer': 'Service Sold by Customer'
   }
   const tabs = tabOrder
     .filter(id => accessibleTabs[id])
@@ -1917,6 +1919,11 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
         {tabs.some(tab => tab.value === 'cost-per-hour') && (
         <TabsContent value="cost-per-hour" className="space-y-6">
           <CostPerHour />
+        </TabsContent>
+        )}
+        {tabs.some(tab => tab.value === 'sold-by-customer') && (
+        <TabsContent value="sold-by-customer" className="space-y-6">
+          <ServiceSoldByCustomer user={user} />
         </TabsContent>
         )}
       </Tabs>

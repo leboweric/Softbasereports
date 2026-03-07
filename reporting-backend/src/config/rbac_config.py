@@ -15,6 +15,7 @@ RESOURCES = {
     'parts_velocity': 'Parts velocity metrics',
     'parts_inventory_turns': 'Parts inventory turns analysis (5-turn matrix)',
     'parts_sold_by_customer': 'Parts sold by customer with GP analysis',
+    'service_sold_by_customer': 'Service sold by customer with labor GP analysis',
     'service_work_orders': 'Service work orders',
     'service_overview': 'Service department overview',
     'rental_availability': 'Rental availability report',
@@ -77,7 +78,7 @@ ROLE_PERMISSIONS = {
             'parts_work_orders', 'parts_inventory', 'parts_stock_alerts',
             'parts_forecast', 'parts_overview', 'parts_employee_performance',
             'parts_velocity', 'parts_inventory_turns', 'parts_sold_by_customer',
-            'service_work_orders', 'service_overview',
+            'service_work_orders', 'service_overview', 'service_sold_by_customer',
             'rental_availability', 'rental_overview',
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
@@ -124,7 +125,7 @@ ROLE_PERMISSIONS = {
     },
     'Service Manager': {
         'resources': [
-            'service_work_orders', 'service_overview', 'knowledge_base', 'currie_service'
+            'service_work_orders', 'service_overview', 'service_sold_by_customer', 'knowledge_base', 'currie_service'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
@@ -274,6 +275,7 @@ NAVIGATION_CONFIG = {
             'customer-profitability': {'label': 'Customer Profitability', 'resource': 'service_overview'},
             'units-repair-cost': {'label': 'Units by Repair Cost', 'resource': 'service_overview'},
             'cost-per-hour': {'label': 'Cost per Hour', 'resource': 'service_overview'},
+            'sold-by-customer': {'label': 'Service Sold by Customer', 'resource': 'service_sold_by_customer'},
         }
     },
     'rental': {

@@ -12192,3 +12192,277 @@ def register_department_routes(reports_bp):
         except Exception as e:
             logger.error(f"Error in parts sold by customer: {str(e)}", exc_info=True)
             return jsonify({'error': str(e), 'type': 'parts_sold_by_customer_error'}), 500
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # SERVICE SOLD BY CUSTOMER
+    # ─────────────────────────────────────────────────────────────────────────
+    @reports_bp.route('/departments/service/sold-by-customer', methods=['GET'])
+    @jwt_required()
+    @require_permission('view_service')
+    def get_service_sold_by_customer():
+        """Get service sold by customer report — labor revenue vs. labor cost, grouped by customer
+        with WO-level drill-down.
+
+        METHODOLOGY (CFO-validated):
+        ─────────────────────────────────────────────────────────────────────
+        LABOR SELL  = InvoiceReg.LaborTaxable + InvoiceReg.LaborNonTax
+                      (the dollar amount billed to the customer for labor on
+                      each invoice, exactly as it appears on the Softbase invoice)
+
+        LABOR COST  = SUM(WOLabor.Cost) per WO
+                      (actual technician cost recorded in WOLabor — the same
+                      source used by Cash Burn / Cost per Hour reports)
+
+        GP $        = Labor Sell − Labor Cost
+        GP %        = GP $ / Labor Sell × 100
+
+        SCOPE       = Service invoices only, identified by matching InvoiceReg.SaleDept
+                      against the tenant's Dept table (same dynamic lookup used by
+                      Customer Billing / invoice-billing report).  Parts billed on
+                      service WOs are intentionally EXCLUDED — they belong to the
+                      Parts P&L per the Currie model (BIZ-RULE-002).
+
+        CURRIE TARGET = 65% GP for Service (Currie model benchmark)
+        ─────────────────────────────────────────────────────────────────────
+
+        Supports both IPS (ind004) and Bennett (ben002) tenants.
+        """
+        try:
+            db = get_db()
+            schema = get_tenant_schema()
+
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            customer_filter = request.args.get('customer', '')
+
+            if not start_date or not end_date:
+                return jsonify({'error': 'start_date and end_date are required'}), 400
+
+            # ── Step 1: Dynamically resolve service department numbers ──
+            # Never hardcode dept numbers — query the tenant's Dept table.
+            # Same logic as invoice-billing endpoint.
+            dept_query = f"SELECT Dept, Title FROM {schema}.Dept ORDER BY Dept"
+            dept_rows = db.execute_query(dept_query)
+
+            service_keywords = ['service', 'field', 'shop', 'pm', 'preventive',
+                                 'maintenance', 'repair', 'warranty']
+            exclude_keywords = ['rental', 'equipment', 'parts', 'sale', 'allied',
+                                 'new ', 'used ']
+
+            service_dept_numbers = set()
+            for row in dept_rows:
+                dept_no = row.get('Dept')
+                title = (row.get('Title') or '').strip().lower()
+                if dept_no is None or not title:
+                    continue
+                is_service = any(kw in title for kw in service_keywords)
+                is_excluded = any(kw in title for kw in exclude_keywords)
+                if is_service and not is_excluded:
+                    service_dept_numbers.add(int(dept_no))
+            service_dept_numbers = sorted(service_dept_numbers)
+
+            logger.info(f"Service sold by customer: resolved service depts {service_dept_numbers} for schema {schema}")
+
+            if not service_dept_numbers:
+                logger.warning(f"No service departments found for schema {schema}")
+                return jsonify({
+                    'customers': [],
+                    'customerCount': 0,
+                    'grandTotalLaborSell': 0,
+                    'grandTotalLaborCost': 0,
+                    'grandTotalGP': 0,
+                    'grandTotalGPPct': None,
+                    'startDate': start_date,
+                    'endDate': end_date,
+                    'serviceDepts': [],
+                    'methodology': {
+                        'laborSell': 'InvoiceReg.LaborTaxable + InvoiceReg.LaborNonTax',
+                        'laborCost': 'SUM(WOLabor.Cost) per WO',
+                        'scope': 'Service invoices only (dynamic Dept table lookup)',
+                        'currieTarget': 65,
+                    }
+                })
+
+            # ── Step 2: Build the main query ──────────────────────────
+            # Pull one row per invoice (= one WO) with:
+            #   - labor sell from InvoiceReg
+            #   - labor cost from WOLabor (aggregated per WO)
+            # Parts revenue/cost intentionally excluded per Currie model.
+            dept_placeholders = ', '.join(['%s'] * len(service_dept_numbers))
+
+            cust_filter_sql = ""
+            params = [start_date, end_date] + service_dept_numbers
+            if customer_filter:
+                safe_cust = customer_filter.replace("'", "''")
+                cust_filter_sql = f"AND (ir.BillTo = '{safe_cust}' OR ir.BillToName LIKE '%{safe_cust}%')"
+
+            # ── Read excluded bill-to customers from org settings ──────
+            excluded_bill_to = []
+            try:
+                user_id = get_jwt_identity()
+                user = User.query.get(int(user_id))
+                if user and user.organization and user.organization.settings:
+                    import json as _json
+                    org_settings = _json.loads(user.organization.settings)
+                    excluded_bill_to = org_settings.get('excluded_bill_to_customers', [])
+            except Exception as exc:
+                logger.warning(f'Could not load excluded_bill_to_customers: {exc}')
+
+            excl_sql = ""
+            if excluded_bill_to:
+                excl_placeholders = ', '.join(['%s'] * len(excluded_bill_to))
+                excl_sql = f"AND ir.BillTo NOT IN ({excl_placeholders})"
+                params.extend(excluded_bill_to)
+
+            query = f"""
+            WITH ServiceInvoices AS (
+                -- All service invoices in the date range for this tenant's service depts.
+                -- Labor sell = LaborTaxable + LaborNonTax (what the customer was billed for labor).
+                SELECT
+                    ir.BillTo                                                    AS CustomerNo,
+                    ir.BillToName                                                AS CustomerName,
+                    ir.InvoiceNo                                                 AS InvoiceNo,
+                    CAST(ir.InvoiceNo AS VARCHAR(20))                            AS WONo,
+                    ir.InvoiceDate                                               AS InvoiceDate,
+                    ir.SaleDept                                                  AS SaleDept,
+                    ISNULL(ir.LaborTaxable, 0) + ISNULL(ir.LaborNonTax, 0)      AS LaborSell
+                FROM {schema}.InvoiceReg ir
+                WHERE ir.InvoiceDate >= %s
+                  AND ir.InvoiceDate <= %s
+                  AND ir.SaleDept IN ({dept_placeholders})
+                  AND ir.DeletionTime IS NULL
+                  AND (ISNULL(ir.LaborTaxable, 0) + ISNULL(ir.LaborNonTax, 0)) > 0
+                  {cust_filter_sql}
+                  {excl_sql}
+            ),
+            LaborCosts AS (
+                -- Actual technician cost from WOLabor.Cost (same source as Cash Burn).
+                -- WOLabor.Cost = tech hours × effective rate, recorded at time of posting.
+                SELECT
+                    wl.WONo,
+                    SUM(ISNULL(wl.Cost, 0))   AS LaborCost,
+                    SUM(ISNULL(wl.Hours, 0))  AS TotalHours,
+                    MAX(wl.TechNo)            AS PrimaryTech
+                FROM {schema}.WOLabor wl
+                WHERE wl.WONo IN (SELECT WONo FROM ServiceInvoices)
+                GROUP BY wl.WONo
+            )
+            SELECT
+                si.CustomerNo,
+                si.CustomerName,
+                si.InvoiceNo,
+                si.WONo,
+                si.InvoiceDate,
+                si.SaleDept,
+                si.LaborSell,
+                ISNULL(lc.LaborCost, 0)                                         AS LaborCost,
+                ISNULL(lc.TotalHours, 0)                                        AS TotalHours,
+                ISNULL(lc.PrimaryTech, '')                                      AS TechNo,
+                si.LaborSell - ISNULL(lc.LaborCost, 0)                         AS GP,
+                CASE
+                    WHEN si.LaborSell = 0 THEN NULL
+                    ELSE ROUND(
+                        (si.LaborSell - ISNULL(lc.LaborCost, 0)) / si.LaborSell * 100,
+                    1)
+                END                                                              AS GPPct
+            FROM ServiceInvoices si
+            LEFT JOIN LaborCosts lc ON si.WONo = lc.WONo
+            ORDER BY si.CustomerName, si.InvoiceDate, si.InvoiceNo
+            """
+
+            results = db.execute_query(query, params)
+
+            # ── Step 3: Group by customer ──────────────────────────────
+            customers = {}
+            for row in (results or []):
+                cust_no = row.get('CustomerNo', '') or ''
+                cust_name = row.get('CustomerName', '') or cust_no
+                key = cust_no
+
+                if key not in customers:
+                    customers[key] = {
+                        'customerNo': cust_no,
+                        'customerName': cust_name,
+                        'workOrders': [],
+                        'totalLaborSell': 0.0,
+                        'totalLaborCost': 0.0,
+                        'totalGP': 0.0,
+                        'totalHours': 0.0,
+                    }
+
+                labor_sell = float(row.get('LaborSell', 0) or 0)
+                labor_cost = float(row.get('LaborCost', 0) or 0)
+                gp = float(row.get('GP', 0) or 0)
+                gp_pct = float(row.get('GPPct', 0) or 0) if row.get('GPPct') is not None else None
+                hours = float(row.get('TotalHours', 0) or 0)
+
+                invoice_date = row.get('InvoiceDate')
+                invoice_date_str = invoice_date.strftime('%Y-%m-%d') if invoice_date else ''
+
+                customers[key]['workOrders'].append({
+                    'invoiceNo': row.get('InvoiceNo', ''),
+                    'woNo': row.get('WONo', ''),
+                    'invoiceDate': invoice_date_str,
+                    'saleDept': row.get('SaleDept', ''),
+                    'techNo': row.get('TechNo', ''),
+                    'laborSell': round(labor_sell, 2),
+                    'laborCost': round(labor_cost, 2),
+                    'totalHours': round(hours, 2),
+                    'gp': round(gp, 2),
+                    'gpPct': round(gp_pct, 1) if gp_pct is not None else None,
+                })
+
+                customers[key]['totalLaborSell'] += labor_sell
+                customers[key]['totalLaborCost'] += labor_cost
+                customers[key]['totalGP'] += gp
+                customers[key]['totalHours'] += hours
+
+            # ── Step 4: Compute customer-level GP% and grand totals ────
+            customer_list = []
+            grand_sell = 0.0
+            grand_cost = 0.0
+            grand_gp = 0.0
+            grand_hours = 0.0
+
+            for cust in sorted(customers.values(), key=lambda x: x['customerName'] or ''):
+                ts = cust['totalLaborSell']
+                tc = cust['totalLaborCost']
+                tg = cust['totalGP']
+                th = cust['totalHours']
+                cust['totalLaborSell'] = round(ts, 2)
+                cust['totalLaborCost'] = round(tc, 2)
+                cust['totalGP'] = round(tg, 2)
+                cust['totalHours'] = round(th, 2)
+                cust['totalGPPct'] = round(tg / ts * 100, 1) if ts != 0 else None
+                customer_list.append(cust)
+                grand_sell += ts
+                grand_cost += tc
+                grand_gp += tg
+                grand_hours += th
+
+            return jsonify({
+                'customers': customer_list,
+                'customerCount': len(customer_list),
+                'grandTotalLaborSell': round(grand_sell, 2),
+                'grandTotalLaborCost': round(grand_cost, 2),
+                'grandTotalGP': round(grand_gp, 2),
+                'grandTotalGPPct': round(grand_gp / grand_sell * 100, 1) if grand_sell != 0 else None,
+                'grandTotalHours': round(grand_hours, 2),
+                'startDate': start_date,
+                'endDate': end_date,
+                'serviceDepts': service_dept_numbers,
+                # Methodology block — surfaced in the UI for CFO validation
+                'methodology': {
+                    'laborSell': 'InvoiceReg.LaborTaxable + InvoiceReg.LaborNonTax (billed labor per invoice)',
+                    'laborCost': 'SUM(WOLabor.Cost) per WO — actual tech cost at posting time',
+                    'partsExcluded': True,
+                    'partsNote': 'Parts billed on service WOs are excluded (Currie BIZ-RULE-002 — Parts P&L)',
+                    'serviceDeptSource': 'Dynamic lookup from Dept table (same as Customer Billing report)',
+                    'currieTarget': 65,
+                    'currieNote': 'Currie model benchmark: 65% GP for Service department',
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"Error in service sold by customer: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e), 'type': 'service_sold_by_customer_error'}), 500

@@ -44,6 +44,7 @@ REPORT_REGISTRY = {
             'employee-performance': {'label': 'Parts Contest'},
             'velocity': {'label': 'Velocity'},
             'inventory-turns': {'label': 'Inventory Turns'},
+            'sold-by-customer': {'label': 'Parts Sold by Customer'},
         }
     },
     'service': {
@@ -62,6 +63,7 @@ REPORT_REGISTRY = {
             'customer-profitability': {'label': 'Customer Profitability'},
             'units-repair-cost': {'label': 'Units by Repair Cost'},
             'cost-per-hour': {'label': 'Cost per Hour'},
+            'sold-by-customer': {'label': 'Service Sold by Customer'},
         }
     },
     'rental': {
