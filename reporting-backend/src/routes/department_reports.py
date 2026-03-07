@@ -12517,12 +12517,12 @@ def register_department_routes(reports_bp):
         cache_key = f'tech_productivity_{schema}_{start_date}_{end_date}'
 
         if not force_refresh:
-            cached = cache.get(cache_key)
+            cached = cache_service.get(cache_key)
             if cached:
                 return jsonify(cached)
 
         try:
-            db = get_db_for_schema(schema)
+            db = get_db()
 
             # ── Step 1: Resolve service department codes ──────────────────────
             dept_query = f"SELECT Dept, Title FROM {schema}.Dept ORDER BY Dept"
@@ -12698,7 +12698,7 @@ def register_department_routes(reports_bp):
                 },
             }
 
-            cache.set(cache_key, result, timeout=3600)
+            cache_service.set(cache_key, result, ttl_seconds=3600)
             return jsonify(result)
 
         except Exception as e:
