@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
-import { AlertTriangle, Clock, Download, FileText, TrendingUp, TrendingDown, Info, Target, Wrench, Users, DollarSign, Activity, Flame, CirclePause, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Clock, Download, FileText, TrendingUp, TrendingDown, Info, Target, Wrench, Users, DollarSign, Activity, Flame, CirclePause, ChevronRight, ChevronDown } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,12 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { 
   BarChart, 
   Bar, 
@@ -619,13 +625,103 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          {tabs.map(tab => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        {/* Grouped dropdown navigation */}
+        <div className="flex items-center gap-2 border-b pb-2">
+          {/* Operations Group */}
+          {['overview', 'all-work-orders', 'work-orders', 'pms', 'pm-route-planner'].some(id => tabs.some(t => t.value === id)) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={['overview', 'all-work-orders', 'work-orders', 'pms', 'pm-route-planner'].includes(activeTab) ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex items-center gap-1"
+                >
+                  Operations <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {['overview', 'all-work-orders', 'work-orders', 'pms', 'pm-route-planner'].map(id => {
+                  const tab = tabs.find(t => t.value === id)
+                  if (!tab) return null
+                  return (
+                    <DropdownMenuItem
+                      key={tab.value}
+                      onSelect={() => setActiveTab(tab.value)}
+                      className={activeTab === tab.value ? 'bg-accent font-medium' : ''}
+                    >
+                      {tab.label}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Financial Performance Group */}
+          {['shop-work-orders', 'cost-per-hour', 'invoice-billing', 'customer-profitability', 'sold-by-customer', 'maintenance-contracts'].some(id => tabs.some(t => t.value === id)) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={['shop-work-orders', 'cost-per-hour', 'invoice-billing', 'customer-profitability', 'sold-by-customer', 'maintenance-contracts'].includes(activeTab) ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex items-center gap-1"
+                >
+                  Financial Performance <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {['shop-work-orders', 'cost-per-hour', 'invoice-billing', 'customer-profitability', 'sold-by-customer', 'maintenance-contracts'].map(id => {
+                  const tab = tabs.find(t => t.value === id)
+                  if (!tab) return null
+                  return (
+                    <DropdownMenuItem
+                      key={tab.value}
+                      onSelect={() => setActiveTab(tab.value)}
+                      className={activeTab === tab.value ? 'bg-accent font-medium' : ''}
+                    >
+                      {tab.label}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Analysis Group */}
+          {['units-repair-cost', 'pm-contest'].some(id => tabs.some(t => t.value === id)) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={['units-repair-cost', 'pm-contest'].includes(activeTab) ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex items-center gap-1"
+                >
+                  Analysis <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {['units-repair-cost', 'pm-contest'].map(id => {
+                  const tab = tabs.find(t => t.value === id)
+                  if (!tab) return null
+                  return (
+                    <DropdownMenuItem
+                      key={tab.value}
+                      onSelect={() => setActiveTab(tab.value)}
+                      className={activeTab === tab.value ? 'bg-accent font-medium' : ''}
+                    >
+                      {tab.label}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Active tab breadcrumb */}
+          <span className="ml-2 text-sm text-muted-foreground">
+            {tabs.find(t => t.value === activeTab)?.label || ''}
+          </span>
+        </div>
 
         {tabs.some(tab => tab.value === 'overview') && (
         <TabsContent value="overview" className="space-y-6">

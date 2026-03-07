@@ -51,6 +51,7 @@ import { MetricTooltip } from '@/components/ui/metric-tooltip'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 import { MethodologyPanel } from '@/components/ui/methodology-panel'
 import { PARTS_METHODOLOGY } from '@/config/ipsPageMethodology'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -642,6 +643,16 @@ const PartsReport = ({ user, organization, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'overview') && (
           <TabsContent value="overview" className="space-y-6">
+          <CfoMethodologyCard
+            title="Parts Overview — CFO Validation Guide"
+            items={[
+              { label: 'Parts Revenue', description: 'Sum of InvoiceReg.SellPrice × QTY for all part lines on closed invoices within the period. Filtered to Parts department sale codes from the Dept table.' },
+              { label: 'Parts GP%', description: '(Parts Sell − Parts Cost) / Parts Sell × 100. Cost = WOParts.Cost (standard cost at time of posting). Currie model target: 40%.' },
+              { label: 'Fill Rate', description: 'Percentage of part line requests fulfilled from stock without backorder. Currie target: 90%+.' },
+              { label: 'Inventory Turnover', description: 'Cost of parts sold / average inventory value. Higher turnover means less capital tied up in slow-moving stock.' },
+              { label: 'Data Source', description: 'Softbase InvoiceReg joined to WOParts. Deleted invoices (DeletionTime IS NOT NULL) are excluded. Internal accounts (900xxx for Bennett, IPS/IPC prefix for IPS) are excluded.' },
+            ]}
+          />
           {/* Row 1: Glanceable KPI Cards */}
           <div className="grid gap-4 md:grid-cols-5">
             {/* Fill Rate */}
@@ -893,6 +904,15 @@ const PartsReport = ({ user, organization, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'work-orders') && (
           <TabsContent value="work-orders" className="space-y-6">
+          <CfoMethodologyCard
+            title="Parts Work Orders — CFO Validation Guide"
+            items={[
+              { label: 'Open Work Orders', description: 'Work orders in the Parts department with no invoice date (not yet closed/billed). Source: WO table filtered to Parts sale codes where InvoiceDate IS NULL.' },
+              { label: 'Parts on Order', description: 'Part lines on open WOs where the part has been ordered from a supplier but not yet received. Source: WOParts where a PO exists and receipt is pending.' },
+              { label: 'Aging', description: 'Days since the work order was opened. WOs open longer than 30 days are flagged for review.' },
+              { label: 'Data Source', description: 'Softbase WO table joined to WOParts and InvoiceReg. Filtered to Parts department sale codes.' },
+            ]}
+          />
           {/* Open Parts Work Orders Card */}
           {openWorkOrdersData && openWorkOrdersData.count > 0 && (
             <Card className="border-2 border-blue-400 bg-blue-50">
@@ -1054,6 +1074,15 @@ const PartsReport = ({ user, organization, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'stock-alerts') && (
         <TabsContent value="stock-alerts" className="space-y-6">
+          <CfoMethodologyCard
+            title="Stock Alerts — CFO Validation Guide"
+            items={[
+              { label: 'Stock Alert', description: 'A part is flagged when its current on-hand quantity is at or below the defined reorder point in the item master. This is a forward-looking inventory health signal.' },
+              { label: 'Fill Rate', description: 'Percentage of part line requests fulfilled from stock. Calculated as: (lines filled from stock) / (total lines requested) × 100. Currie target: 90%+.' },
+              { label: 'Reorder Point', description: 'Set in Softbase item master per part number. Represents the minimum stock level before a replenishment order should be placed.' },
+              { label: 'Data Source', description: 'Softbase parts inventory table joined to item master reorder settings. On-hand quantity from the live inventory balance.' },
+            ]}
+          />
           {/* Parts Fill Rate Card */}
           {fillRateData && (
             <Card>
@@ -1336,6 +1365,15 @@ const PartsReport = ({ user, organization, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'velocity') && (
         <TabsContent value="velocity" className="space-y-6">
+          <CfoMethodologyCard
+            title="Parts Velocity — CFO Validation Guide"
+            items={[
+              { label: 'Velocity Classification', description: 'Parts are classified as Fast (sold 12+ times/year), Medium (4–11 times/year), Slow (1–3 times/year), or Dead (0 sales in 12 months) based on transaction frequency.' },
+              { label: 'Dead Stock Risk', description: 'Parts with zero sales in the trailing 12 months. These represent capital tied up in inventory with no demand signal. Currie model flags these for liquidation review.' },
+              { label: 'Inventory Value by Velocity', description: 'Total on-hand value segmented by velocity class. A healthy parts department has the majority of inventory value in Fast and Medium movers.' },
+              { label: 'Data Source', description: 'Softbase parts inventory joined to WOParts transaction history. Trailing 12-month sales frequency determines velocity class.' },
+            ]}
+          />
           {/* Parts Velocity Analysis */}
           {velocityData && (
             <Card>
@@ -1511,6 +1549,15 @@ const PartsReport = ({ user, organization, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'forecast') && (
         <TabsContent value="forecast" className="space-y-6">
+          <CfoMethodologyCard
+            title="Parts Forecast — CFO Validation Guide"
+            items={[
+              { label: 'Demand Forecast', description: 'Projected parts demand based on trailing 12-month sales velocity. Uses linear regression on monthly sales history per part number to project forward demand.' },
+              { label: 'Forecast Accuracy', description: 'Measured as: 1 − (|Actual − Forecast| / Actual). Higher accuracy means the model is reliable for procurement planning.' },
+              { label: 'Reorder Recommendation', description: 'Suggested order quantity = (Projected monthly demand × lead time in months) − current on-hand. Only shown for parts with positive projected demand.' },
+              { label: 'Data Source', description: 'Softbase WOParts transaction history (trailing 12 months). Forecast model runs nightly and is recalculated on each page load.' },
+            ]}
+          />
           {/* Parts Demand Forecast */}
           {forecastLoading ? (
             <LoadingSpinner 
@@ -1672,17 +1719,44 @@ const PartsReport = ({ user, organization, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'employee-performance') && (
         <TabsContent value="employee-performance" className="space-y-6">
+          <CfoMethodologyCard
+            title="Parts Employee Performance — CFO Validation Guide"
+            items={[
+              { label: 'Parts Sold per Employee', description: 'Total parts revenue attributed to each parts counter employee, based on the selling technician/employee code on each invoice line.' },
+              { label: 'GP% per Employee', description: 'Gross profit percentage by employee: (Sell − Cost) / Sell. Identifies which counter staff are maintaining margin discipline vs. discounting.' },
+              { label: 'Currie Target', description: 'Parts GP% target is 40% per the Currie dealership model. Employees consistently below 40% may need pricing coaching.' },
+              { label: 'Data Source', description: 'Softbase InvoiceReg joined to WOParts, grouped by employee/salesperson code. Filtered to Parts department sale codes.' },
+            ]}
+          />
           <PartsEmployeePerformance />
         </TabsContent>
         )}
 
         {tabs.some(tab => tab.value === 'inventory-location') && (
         <TabsContent value="inventory-location" className="space-y-6">
+          <CfoMethodologyCard
+            title="Inventory by Location — CFO Validation Guide"
+            items={[
+              { label: 'Location', description: 'Physical bin or shelf location in the parts warehouse as defined in the Softbase item master. Helps identify where capital is concentrated spatially.' },
+              { label: 'On-Hand Value', description: 'Current inventory value at each location: on-hand quantity × standard cost from item master. Useful for physical count reconciliation.' },
+              { label: 'Turnover by Location', description: 'Sales frequency for parts in each location. Low-turnover locations may indicate poor slotting — fast movers should be in accessible positions.' },
+              { label: 'Data Source', description: 'Softbase parts inventory table joined to item master location field. On-hand quantity is live from the inventory balance.' },
+            ]}
+          />
           <PartsInventoryByLocation />
         </TabsContent>
         )}
         {tabs.some(tab => tab.value === 'inventory-turns') && (
         <TabsContent value="inventory-turns" className="space-y-6">
+          <CfoMethodologyCard
+            title="Inventory Turns — CFO Validation Guide"
+            items={[
+              { label: 'Inventory Turns', description: 'Cost of parts sold ÷ average inventory value. A higher number means inventory is cycling faster and less capital is tied up. Currie model target: 4–6 turns/year for a healthy parts operation.' },
+              { label: 'Average Inventory Value', description: 'Average of beginning and ending inventory value for the period. Calculated from Softbase inventory snapshots.' },
+              { label: 'Cost of Parts Sold', description: 'Sum of WOParts.Cost for all parts sold in the period. Uses standard cost at time of posting.' },
+              { label: 'Data Source', description: 'Softbase WOParts (cost of sales) joined to inventory balance snapshots. Filtered to Parts department sale codes.' },
+            ]}
+          />
           <PartsInventoryTurns user={user} />
         </TabsContent>
         )}
