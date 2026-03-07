@@ -357,7 +357,16 @@ class CEODashboardETL(BaseETL):
     def _extract_monthly_sales(self) -> list:
         """Extract monthly sales with trailing 13 months using dynamic LIKE queries"""
         schema = self.schema
-        
+        now = self.current_date
+        today_day = now.day
+        current_year = now.year
+        current_month = now.month
+
+        # Bennett (ben002): exclude February 2024 - full ERP migration data dump from prior system
+        bennett_exclude_clause = ""
+        if schema == 'ben002':
+            bennett_exclude_clause = "AND NOT (YEAR(EffectiveDate) = 2024 AND MONTH(EffectiveDate) = 2)"
+
         query = f"""
         SELECT 
             YEAR(EffectiveDate) as year,
@@ -368,11 +377,38 @@ class CEODashboardETL(BaseETL):
         WHERE (AccountNo LIKE '4%' OR AccountNo LIKE '5%')
             AND EffectiveDate >= DATEADD(month, -25, GETDATE())
             AND Posted = 1
+            {bennett_exclude_clause}
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         """
-        
+
+        # Prior-year same month limited to same day-of-month as today
+        # E.g. on March 7 2026, show March 1-7 2025 (not all of March 2025)
+        prior_year = current_year - 1
+        prior_year_mtd_query = f"""
+        SELECT 
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) as revenue,
+            SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as cost
+        FROM {schema}.GLDetail
+        WHERE (AccountNo LIKE '4%' OR AccountNo LIKE '5%')
+            AND YEAR(EffectiveDate) = {prior_year}
+            AND MONTH(EffectiveDate) = {current_month}
+            AND DAY(EffectiveDate) <= {today_day}
+            AND Posted = 1
+        """
+
         results = self.azure_sql.execute_query(query)
+        prior_year_mtd_results = self.azure_sql.execute_query(prior_year_mtd_query)
+
+        # Build prior-year MTD lookup for current month
+        prior_year_partial = None
+        if prior_year_mtd_results:
+            row = prior_year_mtd_results[0]
+            py_rev = float(row.get('revenue') or 0)
+            py_cost = float(row.get('cost') or 0)
+            if py_rev > 0 or py_cost > 0:
+                prior_year_partial = {'revenue': py_rev, 'cost': py_cost}
+
         monthly_sales = []
         
         if results:
@@ -380,15 +416,25 @@ class CEODashboardETL(BaseETL):
                 revenue = float(row['total_revenue'] or 0)
                 cost = float(row['total_cost'] or 0)
                 margin = round(((revenue - cost) / revenue) * 100, 1) if revenue > 0 else None
-                
-                monthly_sales.append({
+                is_current = (row['year'] == current_year and row['month'] == current_month)
+
+                entry = {
                     'year': row['year'],
                     'month': row['month'],
                     'amount': revenue,
                     'cost': cost,
                     'margin': margin,
                     'gross_margin_dollars': revenue - cost
-                })
+                }
+
+                # Attach prior-year MTD partial data to the current month row
+                # so the mart path can use it for the shadow bar
+                if is_current and prior_year_partial:
+                    entry['prior_year_partial_revenue'] = prior_year_partial['revenue']
+                    entry['prior_year_partial_cost'] = prior_year_partial['cost']
+                    entry['prior_year_partial_day'] = today_day
+
+                monthly_sales.append(entry)
         
         return monthly_sales
     
@@ -428,7 +474,12 @@ class CEODashboardETL(BaseETL):
         cost_list = "', '".join(all_cost_accounts)
         all_accounts = all_revenue_accounts + all_cost_accounts
         all_list = "', '".join(all_accounts)
-        
+
+        # Bennett (ben002): exclude February 2024 - ERP migration data dump
+        bennett_exclude_clause = ""
+        if schema == 'ben002':
+            bennett_exclude_clause = "AND NOT (YEAR(EffectiveDate) = 2024 AND MONTH(EffectiveDate) = 2)"
+
         query = f"""
         SELECT 
             YEAR(EffectiveDate) as year,
@@ -439,6 +490,7 @@ class CEODashboardETL(BaseETL):
         WHERE AccountNo IN ('{all_list}')
             AND EffectiveDate >= DATEADD(month, -25, GETDATE())
             AND Posted = 1
+            {bennett_exclude_clause}
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         """
@@ -471,6 +523,11 @@ class CEODashboardETL(BaseETL):
         """
         schema = self.schema
         
+        # Bennett (ben002): exclude February 2024 - ERP migration data dump
+        bennett_exclude_clause = ""
+        if schema == 'ben002':
+            bennett_exclude_clause = "AND NOT (YEAR(InvoiceDate) = 2024 AND MONTH(InvoiceDate) = 2)"
+
         query = f"""
         SELECT 
             YEAR(InvoiceDate) as year,
@@ -480,6 +537,7 @@ class CEODashboardETL(BaseETL):
             SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue
         FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= DATEADD(month, -25, GETDATE())
+            {bennett_exclude_clause}
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         """
@@ -533,6 +591,11 @@ class CEODashboardETL(BaseETL):
         revenue_str = ", ".join(f"'{a}'" for a in revenue_accounts)
         cogs_str = ", ".join(f"'{a}'" for a in cogs_accounts) if cogs_accounts else "'NONE'"
         
+        # Bennett (ben002): exclude February 2024 - ERP migration data dump
+        bennett_exclude_clause = ""
+        if schema == 'ben002':
+            bennett_exclude_clause = "AND NOT (YEAR(EffectiveDate) = 2024 AND MONTH(EffectiveDate) = 2)"
+
         # 1. Get Revenue/Cost from GLDetail using tenant-specific accounts
         gl_query = f"""
         SELECT 
@@ -544,6 +607,7 @@ class CEODashboardETL(BaseETL):
         WHERE AccountNo IN ({accounts_str})
             AND EffectiveDate >= DATEADD(month, -25, GETDATE())
             AND Posted = 1
+            {bennett_exclude_clause}
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         """

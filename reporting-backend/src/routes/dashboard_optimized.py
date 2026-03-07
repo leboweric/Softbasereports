@@ -2214,6 +2214,11 @@ def _get_dashboard_from_mart(start_time, org_id=None):
     
     def format_monthly_data(data, fiscal_months):
         """Add month labels and prior year comparison to monthly data"""
+        now = datetime.now()
+        current_year = now.year
+        current_month = now.month
+        today_day = now.day
+
         formatted = []
         data_by_key = {(d['year'], d['month']): d for d in data}
         
@@ -2226,6 +2231,7 @@ def _get_dashboard_from_mart(start_time, org_id=None):
             
             key = (year, month)
             prior_key = (year - 1, month)
+            is_current_month = (year == current_year and month == current_month)
             
             if key in data_by_key:
                 entry = data_by_key[key].copy()
@@ -2234,21 +2240,50 @@ def _get_dashboard_from_mart(start_time, org_id=None):
             else:
                 entry = {'month': month_str, 'year': year, 'month_number': month, 'amount': 0}
             
-            # Add prior year comparison data
-            prior_row = data_by_key.get(prior_key)
-            if prior_row:
-                prior_amount = float(prior_row.get('amount', 0))
-                prior_cost = float(prior_row.get('cost', 0))
-                entry['prior_year_amount'] = prior_amount
-                entry['prior_year_gross_margin_dollars'] = prior_amount - prior_cost
-                if prior_amount > 0:
-                    entry['prior_year_margin'] = round(((prior_amount - prior_cost) / prior_amount) * 100, 1)
+            # For the current in-progress month, use the prior-year MTD partial data
+            # (same day-of-month cutoff) stored in the current month's mart row by the ETL.
+            # This gives an apples-to-apples shadow bar (e.g. March 1-7 2025 vs March 1-7 2026).
+            if is_current_month:
+                current_row = data_by_key.get(key, {})
+                py_partial_rev = current_row.get('prior_year_partial_revenue')
+                py_partial_cost = current_row.get('prior_year_partial_cost', 0)
+                if py_partial_rev is not None and float(py_partial_rev) > 0:
+                    py_rev = float(py_partial_rev)
+                    py_cost = float(py_partial_cost)
+                    entry['prior_year_amount'] = py_rev
+                    entry['prior_year_gross_margin_dollars'] = py_rev - py_cost
+                    entry['prior_year_margin'] = round(((py_rev - py_cost) / py_rev) * 100, 1) if py_rev > 0 else None
+                    entry['prior_year_is_partial'] = True
+                    entry['prior_year_day_cutoff'] = today_day
                 else:
-                    entry['prior_year_margin'] = None
+                    # Fall back to full prior-year month if no partial data available
+                    prior_row = data_by_key.get(prior_key)
+                    if prior_row:
+                        prior_amount = float(prior_row.get('amount', 0))
+                        prior_cost = float(prior_row.get('cost', 0))
+                        entry['prior_year_amount'] = prior_amount
+                        entry['prior_year_gross_margin_dollars'] = prior_amount - prior_cost
+                        entry['prior_year_margin'] = round(((prior_amount - prior_cost) / prior_amount) * 100, 1) if prior_amount > 0 else None
+                    else:
+                        entry['prior_year_amount'] = 0
+                        entry['prior_year_margin'] = None
+                        entry['prior_year_gross_margin_dollars'] = 0
             else:
-                entry['prior_year_amount'] = 0
-                entry['prior_year_margin'] = None
-                entry['prior_year_gross_margin_dollars'] = 0
+                # Add prior year comparison data for closed months
+                prior_row = data_by_key.get(prior_key)
+                if prior_row:
+                    prior_amount = float(prior_row.get('amount', 0))
+                    prior_cost = float(prior_row.get('cost', 0))
+                    entry['prior_year_amount'] = prior_amount
+                    entry['prior_year_gross_margin_dollars'] = prior_amount - prior_cost
+                    if prior_amount > 0:
+                        entry['prior_year_margin'] = round(((prior_amount - prior_cost) / prior_amount) * 100, 1)
+                    else:
+                        entry['prior_year_margin'] = None
+                else:
+                    entry['prior_year_amount'] = 0
+                    entry['prior_year_margin'] = None
+                    entry['prior_year_gross_margin_dollars'] = 0
             
             formatted.append(entry)
         
@@ -2650,7 +2685,12 @@ def get_dashboard_summary_fast():
         fiscal_months = get_fiscal_year_months()
         
         def format_monthly_data(data, fiscal_months):
-            """Add month labels to monthly data"""
+            """Add month labels and prior year comparison to monthly data"""
+            now = datetime.now()
+            current_year = now.year
+            current_month = now.month
+            today_day = now.day
+
             formatted = []
             data_by_key = {(d['year'], d['month']): d for d in data}
             
@@ -2662,13 +2702,56 @@ def get_dashboard_summary_fast():
                     month_str = month_date.strftime("%b")
                 
                 key = (year, month)
+                prior_key = (year - 1, month)
+                is_current_month = (year == current_year and month == current_month)
+
                 if key in data_by_key:
                     entry = data_by_key[key].copy()
                     entry['month'] = month_str
                     entry['month_number'] = month
-                    formatted.append(entry)
                 else:
-                    formatted.append({'month': month_str, 'year': year, 'month_number': month, 'amount': 0})
+                    entry = {'month': month_str, 'year': year, 'month_number': month, 'amount': 0}
+
+                # For the current in-progress month, use prior-year MTD partial data
+                # stored in the mart row by the ETL (same day-of-month cutoff)
+                if is_current_month:
+                    current_row = data_by_key.get(key, {})
+                    py_partial_rev = current_row.get('prior_year_partial_revenue')
+                    py_partial_cost = current_row.get('prior_year_partial_cost', 0)
+                    if py_partial_rev is not None and float(py_partial_rev) > 0:
+                        py_rev = float(py_partial_rev)
+                        py_cost = float(py_partial_cost)
+                        entry['prior_year_amount'] = py_rev
+                        entry['prior_year_gross_margin_dollars'] = py_rev - py_cost
+                        entry['prior_year_margin'] = round(((py_rev - py_cost) / py_rev) * 100, 1) if py_rev > 0 else None
+                        entry['prior_year_is_partial'] = True
+                        entry['prior_year_day_cutoff'] = today_day
+                    else:
+                        prior_row = data_by_key.get(prior_key)
+                        if prior_row:
+                            prior_amount = float(prior_row.get('amount', 0))
+                            prior_cost = float(prior_row.get('cost', 0))
+                            entry['prior_year_amount'] = prior_amount
+                            entry['prior_year_gross_margin_dollars'] = prior_amount - prior_cost
+                            entry['prior_year_margin'] = round(((prior_amount - prior_cost) / prior_amount) * 100, 1) if prior_amount > 0 else None
+                        else:
+                            entry['prior_year_amount'] = 0
+                            entry['prior_year_margin'] = None
+                            entry['prior_year_gross_margin_dollars'] = 0
+                else:
+                    prior_row = data_by_key.get(prior_key)
+                    if prior_row:
+                        prior_amount = float(prior_row.get('amount', 0))
+                        prior_cost = float(prior_row.get('cost', 0))
+                        entry['prior_year_amount'] = prior_amount
+                        entry['prior_year_gross_margin_dollars'] = prior_amount - prior_cost
+                        entry['prior_year_margin'] = round(((prior_amount - prior_cost) / prior_amount) * 100, 1) if prior_amount > 0 else None
+                    else:
+                        entry['prior_year_amount'] = 0
+                        entry['prior_year_margin'] = None
+                        entry['prior_year_gross_margin_dollars'] = 0
+
+                formatted.append(entry)
             
             return formatted
         
