@@ -283,6 +283,10 @@ class PostgreSQLService:
                     cursor.execute(self._get_sales_rep_comp_tables_sql())
                     logger.info("Sales rep compensation tables created/verified successfully")
 
+                    # Create Parts Associations tables
+                    cursor.execute(self._get_parts_associations_sql())
+                    logger.info("Parts associations table created/verified successfully")
+
                     conn.commit()
                     return True
         except Exception as e:
@@ -436,6 +440,32 @@ class PostgreSQLService:
         CREATE INDEX IF NOT EXISTS idx_rep_trans_locked ON sales_rep_monthly_transactions(is_locked);
         """
 
+
+    def _get_parts_associations_sql(self):
+        """SQL to create Parts Associations table for upsell intelligence"""
+        return """
+        CREATE TABLE IF NOT EXISTS parts_associations (
+            id SERIAL PRIMARY KEY,
+            org_id INTEGER NOT NULL,
+            trigger_part_no VARCHAR(50) NOT NULL,
+            trigger_description VARCHAR(255),
+            recommended_part_no VARCHAR(50) NOT NULL,
+            recommended_description VARCHAR(255),
+            relationship_type VARCHAR(50) DEFAULT 'often_needed_together',
+            reason TEXT,
+            confidence NUMERIC(5,2) DEFAULT 0,
+            source VARCHAR(20) DEFAULT 'manual',
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by VARCHAR(100),
+            updated_at TIMESTAMP,
+            updated_by VARCHAR(100),
+            UNIQUE(org_id, trigger_part_no, recommended_part_no)
+        );
+        CREATE INDEX IF NOT EXISTS idx_parts_assoc_org ON parts_associations(org_id);
+        CREATE INDEX IF NOT EXISTS idx_parts_assoc_trigger ON parts_associations(trigger_part_no);
+        CREATE INDEX IF NOT EXISTS idx_parts_assoc_active ON parts_associations(is_active);
+        """
 
     def _get_tech_wage_rates_sql(self):
         """SQL to create Tech Wage Rates table"""

@@ -51,6 +51,9 @@ import PartsEmployeePerformance from './PartsEmployeePerformance'
 import PartsInventoryByLocation from './PartsInventoryByLocation'
 import PartsInventoryTurns from './PartsInventoryTurns'
 import PartsSoldByCustomer from './PartsSoldByCustomer'
+import PartsAssociationManager from './PartsAssociationManager'
+import PartsCounterAssistant from './PartsCounterAssistant'
+import PartsMissedUpsell from './PartsMissedUpsell'
 import RevenueChart from './RevenueChart'
 import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsContext'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
@@ -122,7 +125,7 @@ const PartsReport = ({ user, organization, onNavigate }) => {
   const accessibleTabs = getAccessibleTabs(user, 'parts')
   
   // Build tabs array from config with desired order
-  const tabOrder = ['overview', 'work-orders', 'inventory-location', 'stock-alerts', 'forecast', 'employee-performance', 'velocity', 'inventory-turns', 'sold-by-customer']
+  const tabOrder = ['overview', 'work-orders', 'inventory-location', 'stock-alerts', 'forecast', 'employee-performance', 'velocity', 'inventory-turns', 'sold-by-customer', 'counter-assistant', 'missed-upsells', 'association-manager']
   const tabs = tabOrder
     .filter(id => accessibleTabs[id]) // Only include tabs user has access to
     .map(id => ({
@@ -702,6 +705,29 @@ const PartsReport = ({ user, organization, onNavigate }) => {
           )}
 
           {/* Financial Performance Group */}
+          {['counter-assistant', 'missed-upsells', 'association-manager'].some(id => tabs.some(t => t.value === id)) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={['counter-assistant', 'missed-upsells', 'association-manager'].includes(activeTab) ? 'default' : 'outline'}
+                  size="sm" className="flex items-center gap-1">
+                  Upsell Intelligence <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {['counter-assistant', 'missed-upsells', 'association-manager'].map(id => {
+                  const tab = tabs.find(t => t.value === id)
+                  if (!tab) return null
+                  return (
+                    <DropdownMenuItem key={id} onClick={() => setActiveTab(id)}
+                      className={activeTab === id ? 'bg-gray-100 font-semibold' : ''}>
+                      {tab.label}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {['sold-by-customer', 'employee-performance'].some(id => tabs.some(t => t.value === id)) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1859,6 +1885,21 @@ const PartsReport = ({ user, organization, onNavigate }) => {
         {tabs.some(tab => tab.value === 'sold-by-customer') && (
         <TabsContent value="sold-by-customer" className="space-y-6">
           <PartsSoldByCustomer user={user} />
+        </TabsContent>
+        )}
+        {tabs.some(tab => tab.value === 'counter-assistant') && (
+        <TabsContent value="counter-assistant" className="space-y-6">
+          <PartsCounterAssistant user={user} />
+        </TabsContent>
+        )}
+        {tabs.some(tab => tab.value === 'missed-upsells') && (
+        <TabsContent value="missed-upsells" className="space-y-6">
+          <PartsMissedUpsell user={user} />
+        </TabsContent>
+        )}
+        {tabs.some(tab => tab.value === 'association-manager') && (
+        <TabsContent value="association-manager" className="space-y-6">
+          <PartsAssociationManager user={user} />
         </TabsContent>
         )}
       </Tabs>

@@ -103,6 +103,7 @@ from src.routes.qbr import qbr_bp
 from src.routes.billing import billing_bp
 from src.routes.sales_rep_comp import sales_rep_comp_bp
 from src.routes.tech_wage_rates import tech_wage_rates_bp
+from src.routes.parts_associations import parts_associations_bp
 from src.routes.schema_explorer import schema_explorer_bp
 from src.routes.invoice_investigator import invoice_investigator_bp
 from src.routes.vital_setup import vital_setup_bp
@@ -420,6 +421,7 @@ app.register_blueprint(qbr_bp)
 app.register_blueprint(billing_bp, url_prefix='/api')
 app.register_blueprint(sales_rep_comp_bp)
 app.register_blueprint(tech_wage_rates_bp)
+app.register_blueprint(parts_associations_bp)
 app.register_blueprint(schema_explorer_bp)
 app.register_blueprint(invoice_investigator_bp)
 app.register_blueprint(vital_setup_bp, url_prefix='/api/setup')

@@ -15,6 +15,7 @@ RESOURCES = {
     'parts_velocity': 'Parts velocity metrics',
     'parts_inventory_turns': 'Parts inventory turns analysis (5-turn matrix)',
     'parts_sold_by_customer': 'Parts sold by customer with GP analysis',
+    'parts_upsell': 'Parts upsell intelligence — association manager, counter assistant, missed upsells',
     'service_sold_by_customer': 'Service sold by customer with labor GP analysis',
     'service_work_orders': 'Service work orders',
     'service_overview': 'Service department overview',
@@ -77,7 +78,7 @@ ROLE_PERMISSIONS = {
             'dashboard',
             'parts_work_orders', 'parts_inventory', 'parts_stock_alerts',
             'parts_forecast', 'parts_overview', 'parts_employee_performance',
-            'parts_velocity', 'parts_inventory_turns', 'parts_sold_by_customer',
+            'parts_velocity', 'parts_inventory_turns', 'parts_sold_by_customer', 'parts_upsell',
             'service_work_orders', 'service_overview', 'service_sold_by_customer',
             'rental_availability', 'rental_overview',
             'accounting_overview', 'accounting_ar', 'accounting_ap',
@@ -112,7 +113,7 @@ ROLE_PERMISSIONS = {
         'resources': [
             'parts_work_orders', 'parts_inventory', 'parts_stock_alerts',
             'parts_forecast', 'parts_overview', 'parts_employee_performance',
-            'parts_velocity', 'parts_inventory_turns', 'parts_sold_by_customer'
+            'parts_velocity', 'parts_inventory_turns', 'parts_sold_by_customer', 'parts_upsell'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
@@ -255,6 +256,9 @@ NAVIGATION_CONFIG = {
             'velocity': {'label': 'Velocity', 'resource': 'parts_velocity'},
             'inventory-turns': {'label': 'Inventory Turns', 'resource': 'parts_inventory_turns'},
             'sold-by-customer': {'label': 'Parts Sold by Customer', 'resource': 'parts_sold_by_customer'},
+            'counter-assistant': {'label': 'Counter Assistant', 'resource': 'parts_upsell'},
+            'missed-upsells': {'label': 'Missed Upsells', 'resource': 'parts_upsell'},
+            'association-manager': {'label': 'Association Manager', 'resource': 'parts_upsell'},
         }
     },
     'service': {
