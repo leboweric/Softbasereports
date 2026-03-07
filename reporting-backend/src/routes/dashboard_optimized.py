@@ -293,7 +293,14 @@ class DashboardQueries:
             now = datetime.now()
             current_year = now.year
             current_month = now.month
-            
+            today_day = now.day
+
+            # Bennett (ben002): exclude February 2024 - that month contains a full ERP migration
+            # data dump from the previous system and is not representative of actual sales.
+            bennett_exclude_clause = ""
+            if self.schema == 'ben002':
+                bennett_exclude_clause = "AND NOT (Year = 2024 AND Month = 2)"
+
             # Query 1: GL.MTD for closed months (authoritative monthly summaries)
             gl_mtd_query = f"""
             SELECT 
@@ -307,6 +314,7 @@ class DashboardQueries:
                     (Year * 100 + Month) >= (YEAR(DATEADD(month, -25, GETDATE())) * 100 + MONTH(DATEADD(month, -25, GETDATE())))
                 )
                 AND NOT (Year = %s AND Month = %s)
+                {bennett_exclude_clause}
             GROUP BY Year, Month
             ORDER BY Year, Month
             """
@@ -329,6 +337,34 @@ class DashboardQueries:
             """
             
             gldetail_results = self.db.execute_query(gldetail_query, [current_year, current_month])
+
+            # Query 3: Prior-year same month, limited to same day-of-month as today
+            # This gives an apples-to-apples comparison for the current in-progress month.
+            # E.g. on March 7 2026, show March 1-7 2024 rather than all of March 2024.
+            prior_year_month = current_month
+            prior_year_year = current_year - 1
+            prior_year_cutoff = now.replace(year=prior_year_year).strftime('%Y-%m-%d')
+            prior_year_mtd_query = f"""
+            SELECT 
+                -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) as revenue,
+                SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as cost
+            FROM {self.schema}.GLDetail
+            WHERE (AccountNo LIKE '4%' OR AccountNo LIKE '5%')
+                AND YEAR(EffectiveDate) = %s
+                AND MONTH(EffectiveDate) = %s
+                AND DAY(EffectiveDate) <= %s
+                AND Posted = 1
+            """
+            prior_year_mtd_results = self.db.execute_query(
+                prior_year_mtd_query, [prior_year_year, prior_year_month, today_day]
+            )
+            prior_year_partial = None
+            if prior_year_mtd_results:
+                row = prior_year_mtd_results[0]
+                prior_year_partial = {
+                    'revenue': float(row.get('revenue') or 0),
+                    'cost': float(row.get('cost') or 0),
+                }
             
             # Merge results into a single dictionary
             revenue_by_month = {}
@@ -444,6 +480,11 @@ class DashboardQueries:
             cost_list = "', '".join(all_cost_accounts)
             all_accounts_list = "', '".join(all_revenue_accounts + all_cost_accounts)
             
+            # Bennett (ben002): exclude February 2024 - ERP migration data dump
+            bennett_exclude_clause = ""
+            if self.schema == 'ben002':
+                bennett_exclude_clause = "AND NOT (YEAR(EffectiveDate) = 2024 AND MONTH(EffectiveDate) = 2)"
+
             query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
@@ -456,6 +497,7 @@ class DashboardQueries:
             WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
+                {bennett_exclude_clause}
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
@@ -547,7 +589,12 @@ class DashboardQueries:
             
             all_accounts = service_rev + service_cost + parts_rev + parts_cost + rental_rev + rental_cost
             all_accounts_list = "', '".join(all_accounts)
-            
+
+            # Bennett (ben002): exclude February 2024 - ERP migration data dump
+            bennett_exclude_clause = ""
+            if self.schema == 'ben002':
+                bennett_exclude_clause = "AND NOT (YEAR(EffectiveDate) = 2024 AND MONTH(EffectiveDate) = 2)"
+
             query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
@@ -565,6 +612,7 @@ class DashboardQueries:
             WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
+                {bennett_exclude_clause}
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
@@ -721,6 +769,11 @@ class DashboardQueries:
             revenue_str = ", ".join(f"'{a}'" for a in revenue_accounts)
             cogs_str = ", ".join(f"'{a}'" for a in cogs_accounts) if cogs_accounts else "'NONE'"
             
+            # Bennett (ben002): exclude February 2024 - ERP migration data dump
+            bennett_exclude_clause = ""
+            if self.schema == 'ben002':
+                bennett_exclude_clause = "AND NOT (YEAR(EffectiveDate) = 2024 AND MONTH(EffectiveDate) = 2)"
+
             # 1. Get Revenue/Cost from GLDetail using tenant-specific accounts
             gl_query = f"""
             SELECT 
@@ -732,6 +785,7 @@ class DashboardQueries:
             WHERE AccountNo IN ({accounts_str})
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
+                {bennett_exclude_clause}
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
