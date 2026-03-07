@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { AlertCircle, ChevronDown, ChevronRight, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { AlertCircle, ChevronDown, ChevronRight, RefreshCw, TrendingUp, TrendingDown, Minus, Info } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { apiUrl } from '@/lib/api'
 import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 
@@ -15,6 +16,25 @@ const CURRIE_PRODUCTIVITY = 85   // Hours Billed  / Hours Paid ≥ 85%
 
 // ─── Three-zone tolerance band (5% below target = amber, >5% below = red) ────
 const AMBER_TOLERANCE = 5  // percentage points
+
+// ─── KPI Card Tooltip Definitions ────────────────────────────────────────────
+const METRIC_TOOLTIPS = {
+  application: {
+    title: 'Application Rate',
+    formula: 'Applied Hours ÷ Hours Paid',
+    description: 'Of every hour you paid a technician, how many were actually spent working on a job? A tech clocked in for 40 hours but only on jobs for 34 of them has 85% Application. Time lost to training, shop meetings, idle time, and admin all reduce this number. Currie target: ≥ 85%.'
+  },
+  efficiency: {
+    title: 'Efficiency Rate',
+    formula: 'Billed Hours ÷ Applied Hours',
+    description: 'Of the hours a tech spent on jobs, how many were actually billed to a customer? If a tech worked 34 hours on jobs but only 34 of those generated a charge, that is 100% Efficiency. Hours written off for warranty, goodwill, or rework count as Applied but not Billed — dragging Efficiency down. Above 100% is possible with flat-rate billing. Currie target: ≥ 100%.'
+  },
+  productivity: {
+    title: 'Productivity Rate',
+    formula: 'Billed Hours ÷ Hours Paid  (= Application × Efficiency)',
+    description: 'The single bottom-line number: of every hour you paid for, how many generated billable revenue? A tech with 85% Application and 100% Efficiency has 85% Productivity. This is the metric most directly tied to profitability and is the primary number used in performance reviews. Currie target: ≥ 85%.'
+  },
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt1 = (n) => (n == null ? '—' : n.toFixed(1))
@@ -210,9 +230,24 @@ const TechnicianProductivity = ({ user }) => {
             {/* Application */}
             {(() => {
               const zone = getZone(dept.application, CURRIE_APPLICATION)
+              const tip = METRIC_TOOLTIPS.application
               return (
                 <Card className={`border-2 ${ZONE_BORDER[zone]} ${ZONE_CARD[zone]}`}>
                   <CardContent className="pt-5 pb-4 flex flex-col items-center gap-2">
+                    <div className="w-full flex justify-end">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-left p-3 space-y-1">
+                            <p className="font-semibold text-sm">{tip.title}</p>
+                            <p className="text-xs font-mono text-muted-foreground">{tip.formula}</p>
+                            <p className="text-xs leading-relaxed">{tip.description}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <MetricBadge value={dept.application} target={CURRIE_APPLICATION} label="Application" />
                     <div className="mt-2 text-xs text-center text-muted-foreground space-y-0.5">
                       <div>Applied: <span className="font-medium">{fmt1(dept.appliedHours)} hrs</span></div>
@@ -232,9 +267,24 @@ const TechnicianProductivity = ({ user }) => {
             {/* Efficiency */}
             {(() => {
               const zone = getZone(dept.efficiency, CURRIE_EFFICIENCY)
+              const tip = METRIC_TOOLTIPS.efficiency
               return (
                 <Card className={`border-2 ${ZONE_BORDER[zone]} ${ZONE_CARD[zone]}`}>
                   <CardContent className="pt-5 pb-4 flex flex-col items-center gap-2">
+                    <div className="w-full flex justify-end">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-left p-3 space-y-1">
+                            <p className="font-semibold text-sm">{tip.title}</p>
+                            <p className="text-xs font-mono text-muted-foreground">{tip.formula}</p>
+                            <p className="text-xs leading-relaxed">{tip.description}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <MetricBadge value={dept.efficiency} target={CURRIE_EFFICIENCY} label="Efficiency" />
                     <div className="mt-2 text-xs text-center text-muted-foreground space-y-0.5">
                       <div>Billed: <span className="font-medium">{fmt1(dept.billedHours)} hrs</span></div>
@@ -254,9 +304,24 @@ const TechnicianProductivity = ({ user }) => {
             {/* Productivity */}
             {(() => {
               const zone = getZone(dept.productivity, CURRIE_PRODUCTIVITY)
+              const tip = METRIC_TOOLTIPS.productivity
               return (
                 <Card className={`border-2 ${ZONE_BORDER[zone]} ${ZONE_CARD[zone]}`}>
                   <CardContent className="pt-5 pb-4 flex flex-col items-center gap-2">
+                    <div className="w-full flex justify-end">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-left p-3 space-y-1">
+                            <p className="font-semibold text-sm">{tip.title}</p>
+                            <p className="text-xs font-mono text-muted-foreground">{tip.formula}</p>
+                            <p className="text-xs leading-relaxed">{tip.description}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <MetricBadge value={dept.productivity} target={CURRIE_PRODUCTIVITY} label="Productivity" />
                     <div className="mt-2 text-xs text-center text-muted-foreground space-y-0.5">
                       <div>Billed: <span className="font-medium">{fmt1(dept.billedHours)} hrs</span></div>
