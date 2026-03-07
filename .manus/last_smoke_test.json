@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-03-06T19:17:45.649549",
+  "passed": 13,
+  "failed": 1,
+  "warnings": 0,
+  "skipped": 3,
+  "verdict": "FAIL",
+  "details": [
+    {
+      "test": "Health Check",
+      "status": "PASS"
+    },
+    {
+      "test": "Dashboard (Fast)",
+      "status": "PASS"
+    },
+    {
+      "test": "Dashboard (Optimized)",
+      "status": "PASS"
+    },
+    {
+      "test": "Work Order Types",
+      "status": "PASS"
+    },
+    {
+      "test": "Invoiced Summary",
+      "status": "PASS"
+    },
+    {
+      "test": "Cost Per Hour",
+      "status": "PASS"
+    },
+    {
+      "test": "Customer Profitability",
+      "status": "PASS"
+    },
+    {
+      "test": "Shop Work Orders (Cash Burn)",
+      "status": "PASS"
+    },
+    {
+      "test": "Awaiting Invoice (Cash Stalled)",
+      "status": "PASS"
+    },
+    {
+      "test": "Maintenance Contract Prof",
+      "status": "FAIL",
+      "reason": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))"
+    },
+    {
+      "test": "Currie Service Benchmarks",
+      "status": "PASS"
+    }
+  ]
+}
