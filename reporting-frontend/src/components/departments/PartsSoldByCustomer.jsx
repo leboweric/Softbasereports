@@ -58,11 +58,16 @@ const PartsSoldByCustomer = ({ user }) => {
   const formatCurrency = (val) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val || 0)
 
+  const CURRIE_PARTS_TARGET = 40 // Currie model GP% target for Parts
+
   const formatPct = (val) => {
     if (val === null || val === undefined || !isFinite(val)) return '—'
-    const color = val >= 30 ? 'text-green-600' : val >= 15 ? 'text-yellow-600' : 'text-red-600'
+    const color = val >= CURRIE_PARTS_TARGET ? 'text-green-600' : val >= 25 ? 'text-yellow-600' : 'text-red-600'
     return <span className={color}>{val.toFixed(1)}%</span>
   }
+
+  const belowTarget = (val) =>
+    val !== null && val !== undefined && isFinite(val) && val < CURRIE_PARTS_TARGET
 
   const filteredCustomers = (data?.customers || []).filter(c =>
     !searchTerm ||
@@ -233,10 +238,14 @@ const PartsSoldByCustomer = ({ user }) => {
               <TableBody>
                 {filteredCustomers.map(c => (
                   <>
-                    {/* Customer summary row */}
+                    {/* Customer summary row — red if GP% below 40% Currie target */}
                     <TableRow
                       key={`cust-${c.customerNo}`}
-                      className="cursor-pointer hover:bg-muted/50 font-medium"
+                      className={`cursor-pointer font-medium ${
+                        belowTarget(c.totalGPPct)
+                          ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500'
+                          : 'hover:bg-muted/50'
+                      }`}
                       onClick={() => toggleCustomer(c.customerNo)}
                     >
                       <TableCell>
@@ -267,7 +276,15 @@ const PartsSoldByCustomer = ({ user }) => {
                           <TableCell className="text-right">GP $ / GP%</TableCell>
                         </TableRow>
                         {c.lines.map((line, idx) => (
-                          <TableRow key={`line-${c.customerNo}-${idx}`} className="bg-muted/10 text-sm">
+                          // Line detail row — red if GP% below 40% Currie target
+                          <TableRow
+                            key={`line-${c.customerNo}-${idx}`}
+                            className={`text-sm ${
+                              belowTarget(line.gpPct)
+                                ? 'bg-red-50 border-l-4 border-l-red-400'
+                                : 'bg-muted/10'
+                            }`}
+                          >
                             <TableCell></TableCell>
                             <TableCell>
                               <div className="font-mono text-xs font-medium">{line.partNo}</div>
