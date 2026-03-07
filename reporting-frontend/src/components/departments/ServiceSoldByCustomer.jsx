@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertCircle, Download, Search, ChevronDown, ChevronRight, Info } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 
 // ─── Currie Model Target ───────────────────────────────────────────────────────
 // Service GP% target per the Currie model benchmark.
@@ -176,87 +177,18 @@ const ServiceSoldByCustomer = ({ user }) => {
       </Card>
 
       {/* ── CFO Methodology Panel ──────────────────────────────────────── */}
-      {data && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="pt-4">
-            <button
-              className="flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900 w-full text-left"
-              onClick={() => setShowMethodology(prev => !prev)}
-            >
-              <Info className="h-4 w-4" />
-              How is this calculated? (CFO Validation Guide)
-              <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${showMethodology ? 'rotate-180' : ''}`} />
-            </button>
-            {showMethodology && (
-              <div className="mt-3 text-sm text-blue-900 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="font-semibold border-b border-blue-200 pb-1">Revenue (Labor Sell)</div>
-                <p>
-                  <code className="bg-blue-100 px-1 rounded text-xs">InvoiceReg.LaborTaxable + InvoiceReg.LaborNonTax</code>
-                </p>
-                <p className="text-xs text-blue-700">
-                  The dollar amount billed to the customer for labor on each invoice — exactly as it
-                  appears on the Softbase invoice. Taxable and non-taxable labor are summed together.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="font-semibold border-b border-blue-200 pb-1">Cost (Labor Cost)</div>
-                <p>
-                  <code className="bg-blue-100 px-1 rounded text-xs">SUM(WOLabor.Cost) per WO</code>
-                </p>
-                <p className="text-xs text-blue-700">
-                  Actual technician cost recorded in the WOLabor table at time of posting.
-                  This is the same source used by the Cash Burn and Cost per Hour reports.
-                  It reflects tech hours × effective labor rate.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="font-semibold border-b border-blue-200 pb-1">Gross Profit</div>
-                <p>
-                  <code className="bg-blue-100 px-1 rounded text-xs">GP $ = Labor Sell − Labor Cost</code>
-                </p>
-                <p>
-                  <code className="bg-blue-100 px-1 rounded text-xs">GP % = GP $ ÷ Labor Sell × 100</code>
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="font-semibold border-b border-blue-200 pb-1">What's Excluded</div>
-                <p className="text-xs text-blue-700">
-                  <strong>Parts billed on service WOs are intentionally excluded.</strong> Per the Currie
-                  model (BIZ-RULE-002), parts revenue and cost belong to the Parts P&L — not Service.
-                  This keeps the Service GP% a pure measure of labor efficiency.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="font-semibold border-b border-blue-200 pb-1">Invoice Scope</div>
-                <p className="text-xs text-blue-700">
-                  Only service invoices are included, identified by matching{' '}
-                  <code className="bg-blue-100 px-1 rounded text-xs">InvoiceReg.SaleDept</code> against
-                  the tenant's <code className="bg-blue-100 px-1 rounded text-xs">Dept</code> table.
-                  This is the same dynamic lookup used by the Customer Billing report — no hardcoded
-                  department numbers.
-                  {data?.serviceDepts?.length > 0 && (
-                    <span className="block mt-1 font-medium">
-                      Current service depts for this org: {data.serviceDepts.join(', ')}
-                    </span>
-                  )}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="font-semibold border-b border-blue-200 pb-1">Currie Model Target</div>
-                <p className="text-xs text-blue-700">
-                  The Currie model benchmark for Service is <strong>{CURRIE_SERVICE_TARGET}% GP</strong>.
-                  Rows at or above {CURRIE_SERVICE_TARGET}% are shown in green. Rows below are highlighted
-                  red — both at the customer summary level and at the individual WO level.
-                </p>
-              </div>
-              </div>
-            </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <CfoMethodologyCard
+        title="Service Sold by Customer — CFO Validation Guide"
+        items={[
+          { label: 'Labor Revenue (Sell)', formula: 'SUM(InvoiceReg.LaborTaxable + InvoiceReg.LaborNonTax) per customer', detail: 'The total amount billed to each customer for labor across all service invoices in the date range. Taxable and non-taxable labor are combined because both represent revenue earned. This is exactly the labor amount that appears on the Softbase invoice.' },
+          { label: 'Labor Cost', formula: 'SUM(WOLabor.Cost) per customer | Joined via WONo', detail: 'Actual technician cost recorded in the WOLabor table at time of posting. This reflects technician hours multiplied by their effective labor rate. It is the same cost source used by the Cash Burn and Cost per Hour reports, so numbers will reconcile across those tabs.' },
+          { label: 'Gross Profit %', formula: '(Labor Sell − Labor Cost) / Labor Sell × 100', detail: 'Service GP% per customer measures how efficiently labor is being monetized. The Currie model target is 65%. Customers below this threshold may be underpriced, require excessive unbillable time, or have a high proportion of warranty or goodwill adjustments. Both the customer summary row and individual WO rows are highlighted red when below target.' },
+          { label: 'Parts Excluded (BIZ-RULE-002)', formula: 'InvoiceReg.PartsSell and WOParts.Cost are NOT included', detail: 'Parts billed on service work orders are intentionally excluded from this report. Per the Currie model, parts revenue and cost belong to the Parts P&L, not Service. Including parts would inflate revenue and distort the Service GP%, which is meant to be a pure measure of labor efficiency.' },
+          { label: 'Invoice Scope', formula: 'InvoiceReg.SaleDept IN (service dept codes from Dept table)', detail: 'Only invoices from service departments are included. Department codes are looked up dynamically from the Dept table for each tenant — no values are hardcoded. This is the same dynamic lookup used by the Customer Billing report.' },
+          { label: 'Internal Accounts Excluded', formula: "Customer.cust_no NOT LIKE '900%' (Bennett) | NOT LIKE 'IPS%' OR 'IPC%' (IPS)", detail: 'Internal cost accounts are automatically excluded. These accounts are used for internal expense tracking, not real customer billing. Including them would distort GP% because they are typically billed at cost or below.' },
+          { label: 'Data Source', formula: 'InvoiceReg JOIN WOLabor ON WONo | JOIN Customer ON BillTo = CustNo | DeletionTime IS NULL', detail: 'Revenue from InvoiceReg, cost from WOLabor, both joined via WONo. Customer name and number from the Customer table. Deleted invoices (DeletionTime IS NOT NULL) are excluded. Expand any customer row to see the individual work orders that make up their total.' },
+        ]}
+      />
 
       {/* ── Error ──────────────────────────────────────────────────────── */}
       {error && (

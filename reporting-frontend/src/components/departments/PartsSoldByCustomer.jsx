@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertCircle, Download, Search, ChevronDown, ChevronRight, Info } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
+import { CfoMethodologyCard } from '@/components/ui/cfo-methodology-card'
 
 const PartsSoldByCustomer = ({ user }) => {
   const today = new Date()
@@ -204,39 +205,17 @@ const PartsSoldByCustomer = ({ user }) => {
       )}
 
       {/* CFO Methodology Panel */}
-      {data && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="pt-4">
-            <button
-              className="flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-900 w-full text-left"
-              onClick={() => setShowMethodology(prev => !prev)}
-            >
-              <Info className="h-4 w-4" />
-              How is this calculated? (CFO Validation Guide)
-              <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${showMethodology ? 'rotate-180' : ''}`} />
-            </button>
-            {showMethodology && (
-              <div className="mt-3 space-y-3 text-sm text-blue-900">
-                <div>
-                  <span className="font-semibold">Parts Sell:</span> Sum of <code className="bg-blue-100 px-1 rounded">InvoiceReg.SellPrice × QTY</code> for all part lines on invoices within the date range, filtered to Parts department sale codes (from the Dept table).
-                </div>
-                <div>
-                  <span className="font-semibold">Parts Cost:</span> Sum of <code className="bg-blue-100 px-1 rounded">WOParts.Cost</code> — the standard cost rate set in Softbase's item master at time of posting. Note: if standard costs are stale or incorrectly configured, cost figures may not reflect actual purchase cost.
-                </div>
-                <div>
-                  <span className="font-semibold">Gross Profit %:</span> <code className="bg-blue-100 px-1 rounded">(Sell − Cost) / Sell × 100</code>. Lines with zero sell are excluded from GP% calculation.
-                </div>
-                <div>
-                  <span className="font-semibold">Currie Model Target (40%):</span> The Currie dealership model benchmarks Parts GP at 40% or above. Rows highlighted in red are below this threshold and warrant review.
-                </div>
-                <div>
-                  <span className="font-semibold">Data Source:</span> Softbase <code className="bg-blue-100 px-1 rounded">InvoiceReg</code> joined to <code className="bg-blue-100 px-1 rounded">WOParts</code>. Matches the Softbase "Parts Sold by Customer w/ Cost" report. Deleted invoices (<code className="bg-blue-100 px-1 rounded">DeletionTime IS NOT NULL</code>) are excluded.
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <CfoMethodologyCard
+        title="Parts Sold by Customer — CFO Validation Guide"
+        items={[
+          { label: 'Parts Sell (Revenue)', formula: 'SUM(InvoiceReg.SellPrice × QTY) per customer | SaleDept IN (parts codes from Dept table)', detail: 'The total amount billed to each customer for parts, across all invoices in the selected date range. Each invoice line contributes its sell price multiplied by quantity. Only invoices from Parts department sale codes are included — those codes are looked up dynamically from the Dept table.' },
+          { label: 'Parts Cost', formula: 'SUM(WOParts.Cost) per customer | Standard cost at time of posting', detail: 'The cost of parts sold to each customer, using the standard cost recorded in the Softbase item master at the time each line was posted. If standard costs are stale or misconfigured in the item master, cost figures will not reflect actual purchase cost — this is the most common cause of GP% discrepancies.' },
+          { label: 'Gross Profit %', formula: '(SUM(SellPrice × QTY) − SUM(WOParts.Cost)) / SUM(SellPrice × QTY) × 100', detail: 'Gross profit percentage per customer measures how much margin you are retaining on parts sold to that customer. Lines with zero sell price are excluded from the GP% calculation to avoid division errors. Rows highlighted in red are below the Currie model target of 40% and warrant review.' },
+          { label: 'Currie Model Target (40%)', formula: 'GP% ≥ 40% (Currie dealership benchmark for Parts)', detail: 'The Currie dealership model benchmarks Parts GP at 40% or above. Customers below this threshold may be receiving excessive discounts, or the parts mix sold to them may skew toward low-margin items. The progress bar at the top shows your overall GP% relative to this target.' },
+          { label: 'Internal Accounts Excluded', formula: 'Customer.cust_no NOT LIKE \'900%\' (Bennett) | NOT LIKE \'IPS%\' OR \'IPC%\' (IPS)', detail: 'Internal cost accounts are automatically excluded from this report. These are accounts used for internal transfers and expense tracking, not real customer sales. Including them would distort GP% because they are often sold at cost or below.' },
+          { label: 'Data Source', formula: 'InvoiceReg JOIN WOParts ON WONo | JOIN Customer ON BillTo = CustNo | DeletionTime IS NULL', detail: 'Revenue and cost come from the Softbase InvoiceReg and WOParts tables, joined to the Customer table for customer name and number. This matches the Softbase “Parts Sold by Customer w/ Cost” report. Deleted invoices (DeletionTime IS NOT NULL) are excluded.' },
+        ]}
+      />
 
       {/* Summary KPIs */}
       {data && (
