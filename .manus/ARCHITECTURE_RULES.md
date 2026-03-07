@@ -456,4 +456,44 @@ WHERE u.email = '<email>';
 
 ---
 
+### Rule 13: Railway Has TWO Separate Services — Backend and Frontend Deploy Independently
+
+**Incident History**: March 7, 2026 — Frontend changes not appearing in production despite successful GitHub push. User had to ask multiple times why changes weren't showing.
+
+**The Architecture**:
+
+The platform runs as **two completely separate Railway services** from the same GitHub repo:
+
+| Service | Root Path | Watch Pattern | Trigger |
+|---------|-----------|---------------|---------|
+| **Backend** | `reporting-backend/` | `reporting-backend/**` | Any change to `reporting-backend/` files |
+| **Frontend** | `reporting-frontend/` | Configured in Railway dashboard | Any change to `reporting-frontend/` files |
+
+**The Problem**: The root `railway.toml` has `watchPatterns = ["reporting-backend/**"]`. This means Railway only auto-deploys the **backend** service when files change. Frontend changes pushed to GitHub do NOT trigger a frontend rebuild unless a file inside `reporting-frontend/` is included in the commit.
+
+**The Rule**: Every commit that includes frontend changes MUST include at least one file inside `reporting-frontend/`. If a commit only touches backend files, the frontend will not redeploy (and vice versa).
+
+**How to Force a Frontend Rebuild**: If frontend changes are not appearing in production after a push, force a rebuild by touching a file in `reporting-frontend/`:
+```bash
+echo "# Build trigger $(date)" >> reporting-frontend/.build-trigger
+git add reporting-frontend/.build-trigger
+git commit -m "chore: trigger frontend rebuild"
+git push origin main
+```
+
+**Verification**: After any frontend deploy, verify the new code is live by checking the JS bundle:
+```python
+import requests, re
+resp = requests.get('https://softbasereports-production.up.railway.app')
+js_file = re.findall(r'src="(/assets/[^"]+\.js)"', resp.text)[0]
+bundle = requests.get('https://softbasereports-production.up.railway.app' + js_file).text
+print('New component present:', 'YourNewComponentName' in bundle)
+```
+
+**NEVER** open the Railway dashboard UI to check deployment status — use the backend API test and bundle check above instead.
+
+**DO NOT** assume a push to GitHub means both services redeployed. Always verify with the bundle check when frontend changes are involved.
+
+---
+
 **This document is a living artifact. Every time a new architectural rule is discovered through a production incident, it MUST be added here with the incident that motivated it.**
