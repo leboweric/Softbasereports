@@ -16,7 +16,7 @@ DEFAULT_COLUMNS = {
         'posted_date': 'PostedDate',
     },
     'Customer': {
-        'cust_no': 'CustNo',
+        'cust_no': 'Number',  # Bennett Customer table uses 'Number' not 'CustNo'
         'name': 'Name',
         'salesman': 'Salesman',
         'branch': 'Branch',
