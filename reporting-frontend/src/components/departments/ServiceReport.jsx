@@ -118,7 +118,7 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
 const ServiceReport = ({ user, organization, onNavigate }) => {
   // Build accessible tabs from visibility settings
   const accessibleTabs = getAccessibleTabs(user, 'service')
-  const tabOrder = ['overview', 'pms', 'pm-route-planner', 'pm-contest', 'shop-work-orders', 'work-orders', 'all-work-orders', 'invoice-billing', 'maintenance-contracts', 'customer-profitability', 'units-repair-cost', 'cost-per-hour', 'sold-by-customer']
+  const tabOrder = ['overview', 'all-work-orders', 'work-orders', 'pms', 'pm-route-planner', 'shop-work-orders', 'cost-per-hour', 'invoice-billing', 'customer-profitability', 'sold-by-customer', 'maintenance-contracts', 'units-repair-cost', 'pm-contest']
   const tabLabels = {
     'overview': 'Overview', 'pms': "PM's", 'pm-route-planner': 'PM Route Planner',
     'pm-contest': 'PM Contest', 'shop-work-orders': 'Cash Burn', 'work-orders': 'Cash Stalled',
